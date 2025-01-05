@@ -57,9 +57,13 @@ async function getTransactions(accountId) {
         if (date < appConfig.COVERFLEX_IMPORT_FROM) {
             return;
         }
+        amount = transaction.amount.amount;
+        if (transaction.is_debit) {
+            amount = amount * -1 ;
+        }
         parsedTransactions.push({
             date: date,
-            amount: transaction.amount.amount,
+            amount: amount,
             payee_name: transaction.description,
             imported_payee: transaction.description,
             imported_id: transaction.id,
