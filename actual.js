@@ -34,6 +34,10 @@ function listAccounts(actualInstance) {
     return actualInstance.getAccounts();
 }
 
+/**
+ * 
+ * @param {typeof actual} actualInstance 
+ */
 async function importTransactions(actualInstance, accountId, transactions) {
     console.info("Importing transactions raw data START:")
     console.debug(transactions)
