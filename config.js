@@ -145,7 +145,9 @@ function getAppConfigFromEnv() {
         COVERFLEX_USERNAME,
         COVERFLEX_PASSWORD,
         COVERFLEX_USER_AGENT_TOKEN,
-        COVERFLEX_IMPORT_FROM
+        COVERFLEX_IMPORT_FROM,
+        ENABLE_EDENRED,
+        ENABLE_COVERFLEX
     }
 
     return appConfig
