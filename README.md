@@ -20,6 +20,8 @@ For `IOS` I used an app called `Proxyman` and checked the request to get the `Us
 ## Get User Agent Token
 To get the User Agent Token use the network tab of your browser.
 
+Search for `https://menhir-api.coverflex.com/api/employee/movements?` and use the pocket_id as `COVERFLEX_ACCOUNT`
+
 ### Setup
 
 -   Clone this repo!
