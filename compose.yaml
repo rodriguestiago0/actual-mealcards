@@ -1,0 +1,9 @@
+services:
+  server:
+    build:
+      context: .
+    env_file:
+      - path: ./.env
+        required: false # default
+    environment:
+      NODE_ENV: production

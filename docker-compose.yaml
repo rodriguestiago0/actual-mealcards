@@ -1,0 +1,24 @@
+version: '3'
+services:
+  actual_server:
+    container_name: myedenredactual
+    image: docker.io/rodriguestiago0/myedenredactual
+    ports:
+      - '5006:5006'
+    environment:
+      - PUID=1003
+      - PGID=100
+      - TZ=Europe/Lisbon
+      - EDENRED_USERNAME=
+      - EDENRED_PIN=
+      - IMPORT_FROM= # default to 1970-01-01
+      - EDENRED_VERSION= # default 4.1.0
+      - EDENRED_ACCOUNT=
+      - ACTUAL_ACCOUNT= 
+      - EDENRED_ACCOUNT_1=
+      - ACTUAL_ACCOUNT_1= 
+      - ACTUAL_SERVER_URL= 
+      - ACTUAL_SERVER_PASSWORD=
+      - ACTUAL_SYNC_ID=
+      - CRON_EXPRESSION= # default value is "0 */4 * * *"
+    restart: unless-stopped
