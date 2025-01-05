@@ -30,7 +30,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: rodriguestiago0/mealcards-actual
+          images: rodriguestiago0/actual-mealcards
 
 
       - name: Build and push Docker image
