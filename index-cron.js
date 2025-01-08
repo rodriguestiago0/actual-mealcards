@@ -16,10 +16,20 @@ console.info('Next run:', interval.next().toISOString());
 
 cron.schedule(cronExpression, async () => {
     if (config.ENABLE_EDENRED) {
-        await importMyEdenredTransactions();
+        console.info('Importing My Edenred');
+        try{
+            await importMyEdenredTransactions();
+        } catch (e) {
+            console.error(e)
+        }
     }
     if (config.ENABLE_COVERFLEX) {
-        await importCoverflexTransactions();
+        console.info('Importing Coverflex');
+        try{
+            await importCoverflexTransactions();
+        } catch (e) {
+            console.error(e)
+        }
     }
     console.info('Next run:', interval.next().toISOString());
 });
