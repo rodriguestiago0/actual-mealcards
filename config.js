@@ -4,6 +4,7 @@ config();
 
 const ACTUAL_SERVER_URL = process.env.ACTUAL_SERVER_URL || "";
 const ACTUAL_SERVER_PASSWORD = process.env.ACTUAL_SERVER_PASSWORD || "";
+const ACTUAL_FILE_PASSWORD = process.env.ACTUAL_FILE_PASSWORD || "";
 
 const APP_PORT = process.env.APP_PORT || 3000;
 
@@ -134,6 +135,7 @@ function getAppConfigFromEnv() {
         APP_URL,
         ACTUAL_SERVER_URL,
         ACTUAL_SERVER_PASSWORD,
+        ACTUAL_FILE_PASSWORD,
         ACTUAL_SYNC_ID,
         CRON_EXPRESSION,
         EDENRED_ACCOUNT_MAPPING,
