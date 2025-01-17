@@ -23,6 +23,7 @@ services:
       - EDENRED_ACTUAL_ACCOUNT_1=
       - ACTUAL_SERVER_URL= 
       - ACTUAL_SERVER_PASSWORD=
+      - ACTUAL_FILE_PASSWORD=
       - ACTUAL_SYNC_ID=
       - CRON_EXPRESSION= # default value is "0 */4 * * *"
       - COVERFLEX_USERNAME=
@@ -47,6 +48,7 @@ docker run -d --name actual_mealcards \
     -e 'ACTUAL_ACCOUNT_1=' \
     -e 'ACTUAL_SERVER_URL= ' \
     -e 'ACTUAL_SERVER_PASSWORD=' \
+    - 'ACTUAL_FILE_PASSWORD=' \
     -e 'ACTUAL_SYNC_ID=' \
     -e CRON_EXPRESSION= # default value is "0 */4 * '* *"' \
     -e COVERFLEX_USERNAME= \
