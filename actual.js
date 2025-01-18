@@ -21,7 +21,7 @@ async function initialize(config) {
         var passwordConfig = {};
         if (!appConfig.ACTUAL_FILE_PASSWORD) {
             passwordConfig = {
-                password: config.ACTUAL_FILE_PASSWORD
+                password: appConfig.ACTUAL_FILE_PASSWORD
             }
         }
         await actual.downloadBudget(id, passwordConfig);
