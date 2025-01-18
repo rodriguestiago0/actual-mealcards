@@ -14,6 +14,14 @@ console.info("Defined cron is: ", cronExpression)
 const interval = parser.parseExpression(cronExpression);
 console.info('Next run:', interval.next().toISOString());
 
+if (config.ENABLE_EDENRED) {
+    console.info('Import for My Edenred enabled');
+}
+
+if (config.ENABLE_COVERFLEX) {
+    console.info('Import Coverflex enabled');
+}
+
 cron.schedule(cronExpression, async () => {
     if (config.ENABLE_EDENRED) {
         console.info('Importing My Edenred');
