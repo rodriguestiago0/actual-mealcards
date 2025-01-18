@@ -18,7 +18,7 @@ if (appConfig.ENABLE_EDENRED) {
 }
 
 if (appConfig.ENABLE_COVERFLEX) {
-    console.info('Import Coverflex enabled');
+    console.info('Import for Coverflex enabled');
 }
 
 cron.schedule(cronExpression, async () => {
