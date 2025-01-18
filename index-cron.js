@@ -2,7 +2,6 @@ const { importMyEdenredTransactions, importCoverflexTransactions } = require("./
 var cron = require('node-cron');
 const parser = require('cron-parser');
 const { getAppConfigFromEnv } = require("./config");
-const { config } = require("dotenv");
 
 const appConfig = getAppConfigFromEnv();
 
