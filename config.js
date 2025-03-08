@@ -9,8 +9,8 @@ const ACTUAL_FILE_PASSWORD = process.env.ACTUAL_FILE_PASSWORD || "";
 const APP_PORT = process.env.APP_PORT || 3000;
 
 const APP_URL = process.env.APP_URL || "http://localhost"
-const EDENRED_VERSION = process.env.EDENRED_VERSION || "4.1.0";
 
+const EDENRED_VERSION = process.env.EDENRED_VERSION || "4.1.0";
 const EDENRED_USERNAME = process.env.EDENRED_USERNAME || "";
 const EDENRED_PIN = process.env.EDENRED_PIN || "";
 const EDENRED_ACCOUNT = process.env.EDENRED_ACCOUNT || "";

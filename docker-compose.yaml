@@ -9,16 +9,19 @@ services:
       - PUID=1003
       - PGID=100
       - TZ=Europe/Lisbon
+      - EDENRED_IMPORT_FROM= # default to 1970-01-01
       - EDENRED_USERNAME=
       - EDENRED_PIN=
-      - IMPORT_FROM= # default to 1970-01-01
       - EDENRED_VERSION= # default 4.1.0
       - EDENRED_ACCOUNT=
-      - ACTUAL_ACCOUNT= 
-      - EDENRED_ACCOUNT_1=
-      - ACTUAL_ACCOUNT_1= 
+      - EDENRED_ACTUAL_ACCOUNT= 
+      - COVERFLEX_IMPORT_FROM=
+      - COVERFLEX_ACCOUNT=
+      - COVERFLEX_ACTUAL_ACCOUNT=
       - ACTUAL_SERVER_URL= 
       - ACTUAL_SERVER_PASSWORD=
       - ACTUAL_SYNC_ID=
       - CRON_EXPRESSION= # default value is "0 */4 * * *"
+      - ENABLE_EDENRED=true
+      - ENABLE_COVERFLEX=true
     restart: unless-stopped
