@@ -15,12 +15,16 @@ User ID now is a `GUID` and not your email address.
 
 For `IOS` I used an app called `Proxyman` and checked the request to get the `UserID`. The `PIN` is your app `PIN`.
 
+Enabled the import by setting the flag `ENABLE_EDENRED` to `true`.
+
 # Coverflex
 
 ## Get User Agent Token
 To get the User Agent Token use the network tab of your browser.
 
 Search for `https://menhir-api.coverflex.com/api/employee/movements?` and use the pocket_id as `COVERFLEX_ACCOUNT`
+
+Enabled the import by setting the flag `ENABLE_COVERFLEX` to `true`.
 
 ### Setup
 
