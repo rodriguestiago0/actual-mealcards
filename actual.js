@@ -46,12 +46,12 @@ function listAccounts(actualInstance) {
  */
 async function importTransactions(actualInstance, accountId, transactions) {
     console.info("Importing transactions raw data START:")
-    console.debug(transactions)
+    //console.debug(transactions)
     const actualResult = await actualInstance.importTransactions(
         accountId,
         transactions
     );
-    console.info("Actual logs: ", actualResult);
+    //console.info("Actual logs: ", actualResult);
 }
 
 /**

@@ -26,6 +26,12 @@ Search for `https://menhir-api.coverflex.com/api/employee/movements?` and use th
 
 Enabled the import by setting the flag `ENABLE_COVERFLEX` to `true`.
 
+Or
+
+Fill your .env with `COVERFLEX_USERNAME` and `COVERFLEX_PASSWORD` and set `ENABLE_COVERFLEX` to `true`.
+
+Run the command get-coverflex-token. When asked enter OTP code. Set returned code to `COVERFLEX_USER_AGENT_TOKEN` on .env .
+
 ### Setup
 
 -   Clone this repo!
@@ -49,6 +55,7 @@ You need to manually create the accounts inside Actual, and then map them to the
   Commands & Options
     import-myendenred   Sync MyEndenred accounts to Actual Budget
     import-coverflex    Sync Coverflex accounts to Actual Budget
+    get-coverflex-token Login on Coverflex Account and return User Agent Token
     config              Print the location of myedenredactual the config file
 
   Examples

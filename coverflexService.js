@@ -1,22 +1,7 @@
 const { getAppConfigFromEnv } = require("./config");
-const crypto = require('crypto');
 
 const appConfig = getAppConfigFromEnv();
-const readline = require("readline");
 
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-});
-
-// helper to turn rl.question into a promise
-function askQuestion(query) {
-    return new Promise((resolve) => {
-        rl.question(query, (answer) => {
-            resolve(answer);
-        });
-    });
-}
 
 const authenticate = async () => {
     u = {
@@ -24,39 +9,21 @@ const authenticate = async () => {
         password: appConfig.COVERFLEX_PASSWORD,
         user_agent_token: appConfig.COVERFLEX_USER_AGENT_TOKEN
     };
-
-    const first_login = await fetch('https://menhir-api.coverflex.com/api/employee/sessions', {
+    const token = await fetch('https://menhir-api.coverflex.com/api/employee/sessions', {
         method: 'POST',
         body: JSON.stringify(u),
         headers: {
             'Content-type': 'application/json'
         },
-    });
-
-    if (first_login.ok) {
-        // wait until user types OTP
-        const otp = await askQuestion('Enter your otp code: ');
-
-        rl.close();
-
-        const token = await fetch('https://menhir-api.coverflex.com/api/employee/sessions', {
-            method: 'POST',
-            body: JSON.stringify({ ...u, otp }),
-            headers: {
-                'Content-type': 'application/json'
-            },
-        })
-            .then((response) => response.json())
-            .then((json) =>
-                json.token)
-            .catch((err) => {
-                console.error("error occured", err);
-                return '';
-            });
-
-        return token;
-    }
-
+    })
+        .then((response) => response.json())
+        .then((json) => 
+            json.token)
+        .catch((err) => {
+            console.error("error occured", err);
+            return '';
+        });
+    return token
 }
 
 

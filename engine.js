@@ -4,6 +4,7 @@ const coverflexService = require("./coverflexService.js");
 const { initialize, importTransactions, finalize  } = require("./actual.js");
 
 const appConfig = getAppConfigFromEnv();
+const readline = require("readline");
 config = getConf("default")
 
 async function importMyEdenredTransactions() {
@@ -39,9 +40,68 @@ async function importCoverflexTransactions() {
     await finalize(actual);
 }
 
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+});
+
+function askQuestion(query) {
+    return new Promise((resolve) => {
+        rl.question(query, (answer) => {
+            resolve(answer);
+        });
+    });
+}
+
+async function getCoverflexToken() {
+    if (!appConfig.ENABLE_COVERFLEX) {
+        throw new Error(`Coverflex import not enabled`);
+    }
+
+    u = {
+        email: appConfig.COVERFLEX_USERNAME,
+        password: appConfig.COVERFLEX_PASSWORD,
+    };
+
+    const first_login = await fetch('https://menhir-api.coverflex.com/api/employee/sessions', {
+        method: 'POST',
+        body: JSON.stringify(u),
+        headers: {
+            'Content-type': 'application/json'
+        },
+    });
+
+        // wait until user types OTP
+        const otp = await askQuestion('Enter your otp code: ');
+
+        rl.close();
+
+        const response = await fetch('https://menhir-api.coverflex.com/api/employee/sessions', {
+            method: 'POST',
+            body: JSON.stringify({ ...u, otp }),
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        const json = await response.json();
+        token = json.token || '';
+
+        bearerToken = 'Bearer ' + token;
+        const trust_device = await fetch('https://menhir-api.coverflex.com/api/employee/sessions/trust-user-agent', {
+                method: 'POST',
+                headers: {
+                    'Authorization': bearerToken
+                },
+            });
+
+        const trust_response = await trust_device.json();
+        console.log("Your COVERFLEX_USER_AGENT_TOKEN is:", trust_response.user_agent_token);
+        }
 
 
 module.exports = {
     importMyEdenredTransactions,
-    importCoverflexTransactions
+    importCoverflexTransactions,
+    getCoverflexToken
 }

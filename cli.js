@@ -1,5 +1,5 @@
 const {  getConf } = require("./config.js");
-const { importMyEdenredTransactions, importCoverflexTransactions } = require("./engine.js");
+const { importMyEdenredTransactions, importCoverflexTransactions, getCoverflexToken } = require("./engine.js");
 
 let config;
 
@@ -23,6 +23,8 @@ module.exports = async (command, flags) => {
         await importMyEdenredTransactions();
     } else if (command === "import-coverflex") {
         await importCoverflexTransactions();
-    } 
+    } else if (command === "get-coverflex-token") {
+        await getCoverflexToken();
+    }
     process.exit();
 };
