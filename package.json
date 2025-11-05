@@ -20,6 +20,6 @@
 		"terminal-link": "^3.0.0"
 	},
 	"engines": {
-		"node": ">=10"
+		"node": ">=22"
 	}
 }
