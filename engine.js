@@ -1,13 +1,12 @@
-const { getAppConfigFromEnv, getConf } = require("./config");
+const { getAppConfigFromEnv } = require("./config");
 const edenredService = require("./edenredService.js");
 const coverflexService = require("./coverflexService.js");
 const { initialize, importTransactions, finalize  } = require("./actual.js");
 
 const appConfig = getAppConfigFromEnv();
-config = getConf("default")
 
 async function importMyEdenredTransactions() {
-    const actual = await initialize(config);
+    const actual = await initialize();
     edenredMapping = appConfig.EDENRED_ACCOUNT_MAPPING
     for (let [edenredAccountId, actualAccountID] of Object.entries(edenredMapping)) {
         console.info("Importing my edenred transactions for account ", edenredAccountId)
@@ -24,7 +23,7 @@ async function importMyEdenredTransactions() {
 
 
 async function importCoverflexTransactions() {
-    const actual = await initialize(config);
+    const actual = await initialize();
     converflexMapping = appConfig.COVERFLEX_ACCOUNT_MAPPING
     for (let [coverflexAccountID, actualAccountID] of Object.entries(converflexMapping)) {
         console.info("Importing coverflex transactions for account ", coverflexAccountID)
