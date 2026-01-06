@@ -10,6 +10,7 @@ const cli = meow(
   Commands & Options
     import-myendenred   Sync MyEndenred accounts to Actual Budget
     import-coverflex    Sync Coverflex accounts to Actual Budget
+    get-coverflex-token Login on Coverflex Account and return User Agent Token
     config              Print the location of myedenredactual the config file
 
   Examples
