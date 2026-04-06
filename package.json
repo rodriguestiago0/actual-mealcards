@@ -1,6 +1,6 @@
 {
   "name": "myedenred-actual",
-  "version": "1.0.21",
+  "version": "1.0.22",
   "description": "Import transactions from yourmeal cards into Actual Budget",
   "main": "cli.js",
   "bin": {
