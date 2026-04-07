@@ -27,12 +27,17 @@ async function importCoverflexTransactions() {
     converflexMapping = appConfig.COVERFLEX_ACCOUNT_MAPPING
     for (let [coverflexAccountID, actualAccountID] of Object.entries(converflexMapping)) {
         console.info("Importing coverflex transactions for account ", coverflexAccountID)
-        var mappedtransactions = await coverflexService.getTransactions(coverflexAccountID)
+        var [mappedtransactions, deletedTransactions] = await coverflexService.getTransactions(coverflexAccountID)
         if (mappedtransactions.length == 0) {
             console.info("No imported transactions");
-            continue;
+        } else {
+            await importTransactions(actual, actualAccountID, mappedtransactions);
         }
-        await importTransactions(actual, actualAccountID, mappedtransactions);
+
+        if (deletedTransactions.length > 0) {
+            console.info("Deleting transactions ", deletedTransactions)
+            await actual.deleteTransactions(deletedTransactions)
+        }
     };
    
     await finalize(actual);

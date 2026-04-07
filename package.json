@@ -1,6 +1,6 @@
 {
   "name": "myedenred-actual",
-  "version": "1.0.21",
+  "version": "1.0.22",
   "description": "Import transactions from yourmeal cards into Actual Budget",
   "main": "cli.js",
   "bin": {
@@ -9,10 +9,10 @@
   "author": "Tiago Rodrigues",
   "license": "MIT",
   "dependencies": {
-    "@actual-app/api": "^26.3.0",
+    "@actual-app/api": "^26.4.0",
     "better-opn": "^3.0.2",
     "cron-parser": "^5.5.0",
-    "dotenv": "^17.3.1",
+    "dotenv": "^17.4.1",
     "meow": "^14.1.0",
     "node-cron": "^4.2.1",
     "ssl-root-cas": "^1.3.1",

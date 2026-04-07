@@ -52,6 +52,7 @@ async function getTransactions(accountId) {
     authorizationToken = await authenticate()
     transactions = await getAllTransactions(authorizationToken, accountId)
     parsedTransactions = []
+    deletedTransactions = []
     transactions.forEach(transaction => {
         date = transaction.executed_at.split("T")[0]
         if (date < appConfig.COVERFLEX_IMPORT_FROM) {
@@ -61,17 +62,23 @@ async function getTransactions(accountId) {
         if (transaction.is_debit) {
             amount = amount * -1 ;
         }
-        parsedTransactions.push({
-            date: date,
-            amount: amount,
-            payee_name: transaction.description,
-            imported_payee: transaction.description,
-            imported_id: transaction.id,
-            cleared: transaction.status == "confirmed",
-        })
+
+        if (transaction.status == "cancelled") {
+            deletedTransactions.push(transaction.id)
+        } else {
+            parsedTransactions.push({
+                id: transaction.id,
+                date: date,
+                amount: amount,
+                payee_name: transaction.description,
+                imported_payee: transaction.description,
+                imported_id: transaction.id,
+                cleared: transaction.status == "confirmed",
+            })
+        }
     });
     
-    return parsedTransactions
+    return parsedTransactions, deletedTransactions
 }
 
 module.exports = {
