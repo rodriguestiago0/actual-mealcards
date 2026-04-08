@@ -78,7 +78,7 @@ async function getTransactions(accountId) {
         }
     });
     
-    return parsedTransactions, deletedTransactions
+    return [parsedTransactions, deletedTransactions]
 }
 
 module.exports = {

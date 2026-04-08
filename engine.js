@@ -1,7 +1,7 @@
 const { getAppConfigFromEnv } = require("./config");
 const edenredService = require("./edenredService.js");
 const coverflexService = require("./coverflexService.js");
-const { initialize, importTransactions, finalize  } = require("./actual.js");
+const { initialize, importTransactions, finalize, deleteTransactions  } = require("./actual.js");
 
 const appConfig = getAppConfigFromEnv();
 
@@ -36,7 +36,7 @@ async function importCoverflexTransactions() {
 
         if (deletedTransactions.length > 0) {
             console.info("Deleting transactions ", deletedTransactions)
-            await actual.deleteTransactions(deletedTransactions)
+            await deleteTransactions(actual, deletedTransactions)
         }
     };
    
