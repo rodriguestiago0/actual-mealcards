@@ -1,4 +1,5 @@
 const { getAppConfigFromEnv } = require("./config");
+const crypto = require('crypto');
 
 const appConfig = getAppConfigFromEnv();
 
@@ -29,7 +30,7 @@ const authenticate = async () => {
 
 const getAllTransactions = async (token, accountId) => {
 
-    url = 'https://menhir-api.coverflex.com/api/employee/movements?pocket_id=' + accountId + '&pagination=no'
+    url = 'https://menhir-api.coverflex.com/api/employee/movements?pocket_id=' +accountId+'&pagination=no'
     bearerToken = 'Bearer ' + token;
     transactions = await fetch(url, {
         method: 'GET',
@@ -38,7 +39,7 @@ const getAllTransactions = async (token, accountId) => {
         },
     })
         .then((response) => response.json())
-        .then((json) =>
+        .then((json) => 
             json.movements.list)
         .catch((err) => {
             console.error("error occured", err);
@@ -51,6 +52,7 @@ async function getTransactions(accountId) {
     authorizationToken = await authenticate()
     transactions = await getAllTransactions(authorizationToken, accountId)
     parsedTransactions = []
+    deletedTransactions = []
     transactions.forEach(transaction => {
         date = transaction.executed_at.split("T")[0]
         if (date < appConfig.COVERFLEX_IMPORT_FROM) {
@@ -58,19 +60,25 @@ async function getTransactions(accountId) {
         }
         amount = transaction.amount.amount;
         if (transaction.is_debit) {
-            amount = amount * -1;
+            amount = amount * -1 ;
         }
-        parsedTransactions.push({
-            date: date,
-            amount: amount,
-            payee_name: transaction.description,
-            imported_payee: transaction.description,
-            imported_id: transaction.id,
-            cleared: transaction.status == "confirmed",
-        })
-    });
 
-    return parsedTransactions
+        if (transaction.status == "cancelled") {
+            deletedTransactions.push(transaction.id)
+        } else {
+            parsedTransactions.push({
+                id: transaction.id,
+                date: date,
+                amount: amount,
+                payee_name: transaction.description,
+                imported_payee: transaction.description,
+                imported_id: transaction.id,
+                cleared: transaction.status == "confirmed",
+            })
+        }
+    });
+    
+    return [parsedTransactions, deletedTransactions]
 }
 
 module.exports = {

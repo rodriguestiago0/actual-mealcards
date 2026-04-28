@@ -7,9 +7,9 @@ const appConfig = getAppConfigFromEnv();
  * 
  * @returns {Promise<typeof actual>}
  */
-async function initialize(config) {
+async function initialize() {
     try {
-        const tmp_dir = `./temp_data_actual/${config.get("user")}`
+        const tmp_dir = `./temp_data_actual/${appConfig.ACTUAL_SYNC_ID}`
         fs.mkdirSync(tmp_dir, { recursive: true });
         await actual.init({
             serverURL: appConfig.ACTUAL_SERVER_URL,
@@ -17,7 +17,7 @@ async function initialize(config) {
             dataDir: tmp_dir
         });
 
-        let id = config.get("budget_id")
+        let id = appConfig.ACTUAL_SYNC_ID;
         var passwordConfig = {};
         if (appConfig.ACTUAL_FILE_PASSWORD) {
             passwordConfig = {
@@ -46,12 +46,26 @@ function listAccounts(actualInstance) {
  */
 async function importTransactions(actualInstance, accountId, transactions) {
     console.info("Importing transactions raw data START:")
-    //console.debug(transactions)
+    console.debug(transactions)
     const actualResult = await actualInstance.importTransactions(
         accountId,
         transactions
     );
-    //console.info("Actual logs: ", actualResult);
+    console.info("Actual logs: ", actualResult);
+}
+
+/**
+ * 
+ * @param {typeof actual} actualInstance 
+ */
+async function deleteTransactions(actualInstance, transactions) {
+    console.info("Delete transactions raw data START:")
+    console.debug(transactions)
+    for (const transactionId of transactions) {
+        await actualInstance.deleteTransaction(
+            transactionId
+        );
+    }
 }
 
 /**
@@ -67,5 +81,6 @@ module.exports = {
     initialize,
     listAccounts,
     importTransactions,
+    deleteTransactions,
     finalize
 }

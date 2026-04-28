@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-const meow = require("meow");
-const myedenred = require("./cli.js");
-
+import meow from 'meow';
+import myedenred from './cli.js';
 const cli = meow(
     `
   Usage
@@ -15,7 +14,8 @@ const cli = meow(
 
   Examples
     $ mealcards import-myendenred
-`);
+`,  {
+	importMeta: import.meta
+});
 
 myedenred(cli.input[0], cli.flags);
-

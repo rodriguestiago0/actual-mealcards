@@ -1,14 +1,12 @@
 const { getAppConfigFromEnv, getConf } = require("./config");
 const edenredService = require("./edenredService.js");
 const coverflexService = require("./coverflexService.js");
-const { initialize, importTransactions, finalize  } = require("./actual.js");
-
-const appConfig = getAppConfigFromEnv();
+const { initialize, importTransactions, finalize, deleteTransactions  } = require("./actual.js");
 const readline = require("readline");
-config = getConf("default")
+const appConfig = getAppConfigFromEnv();
 
 async function importMyEdenredTransactions() {
-    const actual = await initialize(config);
+    const actual = await initialize();
     edenredMapping = appConfig.EDENRED_ACCOUNT_MAPPING
     for (let [edenredAccountId, actualAccountID] of Object.entries(edenredMapping)) {
         console.info("Importing my edenred transactions for account ", edenredAccountId)
@@ -25,16 +23,21 @@ async function importMyEdenredTransactions() {
 
 
 async function importCoverflexTransactions() {
-    const actual = await initialize(config);
+    const actual = await initialize();
     converflexMapping = appConfig.COVERFLEX_ACCOUNT_MAPPING
     for (let [coverflexAccountID, actualAccountID] of Object.entries(converflexMapping)) {
         console.info("Importing coverflex transactions for account ", coverflexAccountID)
-        var mappedtransactions = await coverflexService.getTransactions(coverflexAccountID)
+        var [mappedtransactions, deletedTransactions] = await coverflexService.getTransactions(coverflexAccountID)
         if (mappedtransactions.length == 0) {
             console.info("No imported transactions");
-            continue;
+        } else {
+            await importTransactions(actual, actualAccountID, mappedtransactions);
         }
-        await importTransactions(actual, actualAccountID, mappedtransactions);
+
+        if (deletedTransactions.length > 0) {
+            console.info("Deleting transactions ", deletedTransactions)
+            await deleteTransactions(actual, deletedTransactions)
+        }
     };
    
     await finalize(actual);

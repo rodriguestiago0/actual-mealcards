@@ -1,6 +1,4 @@
-const Conf = require("conf");
-const config = require("dotenv").config;
-config();
+require("dotenv").config();
 
 const ACTUAL_SERVER_URL = process.env.ACTUAL_SERVER_URL || "";
 const ACTUAL_SERVER_PASSWORD = process.env.ACTUAL_SERVER_PASSWORD || "";
@@ -156,19 +154,8 @@ function getAppConfigFromEnv() {
 }
 
 
-function getConf(username) {
-    const appConfig = getAppConfigFromEnv();
-    const key = `${username}`;
 
-    const tmp = new Conf({
-        configName: key
-    });
-    tmp.set("user", key);
-    tmp.set("budget_id", appConfig.ACTUAL_SYNC_ID)
-    return tmp;
-}
 
 module.exports = {
-    getAppConfigFromEnv,
-    getConf
+    getAppConfigFromEnv
 }
