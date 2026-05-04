@@ -58,6 +58,20 @@ async function importTransactions(actualInstance, accountId, transactions) {
  * 
  * @param {typeof actual} actualInstance 
  */
+async function deleteTransactions(actualInstance, transactions) {
+    console.info("Delete transactions raw data START:")
+    console.debug(transactions)
+    for (const transactionId of transactions) {
+        await actualInstance.deleteTransaction(
+            transactionId
+        );
+    }
+}
+
+/**
+ * 
+ * @param {typeof actual} actualInstance 
+ */
 async function finalize(actualInstance) {
     await actualInstance.sync()
     await actualInstance.shutdown();
@@ -67,5 +81,6 @@ module.exports = {
     initialize,
     listAccounts,
     importTransactions,
+    deleteTransactions,
     finalize
 }
