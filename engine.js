@@ -1,4 +1,4 @@
-const { getAppConfigFromEnv, getConf } = require("./config");
+const { getAppConfigFromEnv } = require("./config");
 const edenredService = require("./edenredService.js");
 const coverflexService = require("./coverflexService.js");
 const { initialize, importTransactions, finalize, deleteTransactions  } = require("./actual.js");
