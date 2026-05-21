@@ -40,4 +40,3 @@ cron.schedule(cronExpression, async () => {
     }
     console.info('Next run:', interval.next().toISOString());
 });
-
