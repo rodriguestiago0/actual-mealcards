@@ -40,7 +40,22 @@ Run the command get-coverflex-token. When asked enter OTP code. Set returned cod
 - Clone this repo and install dependencies: `npm ci`
 - Copy `.env.sample` to `.env` and fill in the blanks
 - Run an import: `node index.js import-myedenred` or `node index.js import-coverflex`
-- Run on a schedule (`CRON_EXPRESSION`, default every 4 hours): `npm start`, or use `docker-compose.yaml`
+- Run on a schedule (`CRON_EXPRESSION`, default every 4 hours): `npm start`, or use `docker-compose.yaml`.
+  Set `RUN_ON_START=true` to also import once at startup.
+
+## Telegram notifications
+
+Set `TELEGRAM_BOT_TOKEN` (from [@BotFather](https://t.me/BotFather)) and `TELEGRAM_CHAT_ID` to
+get a message when a scheduled import fails, and a daily reminder in the 30 days before the
+Coverflex user agent token expires. To find your chat id, send the bot a message and open
+`https://api.telegram.org/bot<TOKEN>/getUpdates`.
+
+## Logs
+
+Output is timestamped. The Actual API's own verbose logging is hidden unless `DEBUG=1`.
+
+Docker images are published for `linux/amd64`, `linux/arm64` and `linux/arm/v7` (the latter runs
+on Node 22).
 
 ## Some things worth noting
 
