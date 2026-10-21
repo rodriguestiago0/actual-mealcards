@@ -43,12 +43,28 @@ Run the command get-coverflex-token. When asked enter OTP code. Set returned cod
 - Run on a schedule (`CRON_EXPRESSION`, default every 4 hours): `npm start`, or use `docker-compose.yaml`.
   Set `RUN_ON_START=true` to also import once at startup.
 
-## Telegram notifications
+## Notifications
 
-Set `TELEGRAM_BOT_TOKEN` (from [@BotFather](https://t.me/BotFather)) and `TELEGRAM_CHAT_ID` to
-get a message when a scheduled import fails, and a daily reminder in the 30 days before the
-Coverflex user agent token expires. To find your chat id, send the bot a message and open
-`https://api.telegram.org/bot<TOKEN>/getUpdates`.
+You get a message when a scheduled import fails, and a daily reminder in the 30 days before the
+Coverflex user agent token expires.
+
+Set `NOTIFICATION_URL` to one or more space-separated URLs. They use the same format as
+[Watchtower](https://containrrr.dev/watchtower/notifications/) (Shoutrrr), so existing Watchtower
+URLs can be reused:
+
+| Service  | URL                                                                           |
+| -------- | ----------------------------------------------------------------------------- |
+| Telegram | `telegram://BOT_TOKEN@telegram?chats=CHAT_ID[,CHAT_ID]`                       |
+| Discord  | `discord://TOKEN@WEBHOOK_ID`                                                  |
+| Slack    | `slack://hook:T-B-X@webhook` (from `https://hooks.slack.com/services/T/B/X`)  |
+| Email    | `smtp://USER:PASSWORD@HOST:PORT/?from=ADDRESS&to=ADDRESS[,ADDRESS]`           |
+| ntfy     | `ntfy://[USER:PASSWORD@]HOST/TOPIC`                                           |
+| Gotify   | `gotify://HOST/APP_TOKEN`                                                     |
+| Webhook  | `generic+https://HOST/PATH` (POSTs JSON `{"title": "...", "message": "..."}`) |
+
+URL-encode special characters in credentials (e.g. `@` → `%40`). Email uses implicit TLS on port
+465 and STARTTLS otherwise; set `encryption=None` to disable it. Add `?scheme=http` (ntfy) or
+`?disabletls=yes` (Gotify) for plain-HTTP servers.
 
 ## Logs
 

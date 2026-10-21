@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 import { deleteByImportedIds, withBudget } from "../src/actual.js";
 import { checkCoverflexTokenExpiry, runEnabledImports } from "../src/engine.js";
-import { notify } from "../src/notify.js";
+import { parseNotificationUrls } from "../src/notify.js";
 import { callsTo, fakeApi } from "./fake-api.js";
 
-const telegram = { botToken: "token", chatId: "42" };
+const notifications = parseNotificationUrls("telegram://1:token@telegram?chats=42");
 const actualConfig = { serverURL: "x", password: "p", syncId: "s", dataDir: "./temp_data_test" };
 const jwt = (payload) => `h.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.s`;
 
@@ -44,22 +44,6 @@ describe("deleteByImportedIds", () => {
   });
 });
 
-describe("notify", () => {
-  it("does nothing without Telegram settings", async (t) => {
-    const fetch = mockFetch(t);
-    await notify(null, "hi");
-    assert.equal(fetch.mock.callCount(), 0);
-  });
-
-  it("posts the message to the chat", async (t) => {
-    const fetch = mockFetch(t);
-    await notify(telegram, "hi");
-    const [url, options] = fetch.mock.calls[0].arguments;
-    assert.equal(url, "https://api.telegram.org/bottoken/sendMessage");
-    assert.deepEqual(JSON.parse(options.body), { chat_id: "42", text: "hi" });
-  });
-});
-
 describe("runEnabledImports", () => {
   it("runs enabled imports, continuing and notifying after a failure", async (t) => {
     const fetch = mockFetch(t);
@@ -70,7 +54,7 @@ describe("runEnabledImports", () => {
       Working: { enabled: () => true, run: async () => ran.push("Working") },
     };
 
-    assert.equal(await runEnabledImports({ telegram }, registry), false);
+    assert.equal(await runEnabledImports({ notifications }, registry), false);
     assert.deepEqual(ran, ["Working"]);
     assert.deepEqual(sentTexts(fetch), ["❌ actual-mealcards: Broken import failed\nauth failed"]);
   });
@@ -79,7 +63,7 @@ describe("runEnabledImports", () => {
 describe("checkCoverflexTokenExpiry", () => {
   const now = new Date("2027-10-10T12:00:00Z");
   const configExpiring = (date) => ({
-    telegram,
+    notifications,
     coverflex: { userAgentToken: jwt({ exp: Date.parse(date) / 1000 }) },
   });
 

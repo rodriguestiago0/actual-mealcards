@@ -12,7 +12,9 @@ if (!cron.validate(config.cronExpression)) {
 }
 if (config.edenred) log.info("My Edenred import enabled");
 if (config.coverflex) log.info("Coverflex import enabled");
-if (config.telegram) log.info("Telegram notifications enabled");
+if (config.notifications.length > 0) {
+  log.info(`Notifications: ${config.notifications.map((channel) => channel.name).join(", ")}`);
+}
 
 const task = cron.schedule(
   config.cronExpression,

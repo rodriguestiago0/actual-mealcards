@@ -102,12 +102,16 @@ describe("loadConfig notifications", () => {
     assert.equal(loadConfig({ ...coverflexEnv, RUN_ON_START: "yes" }).runOnStart, true);
   });
 
-  it("configures Telegram only when both settings are present", () => {
-    assert.equal(loadConfig(coverflexEnv).telegram, null);
+  it("parses NOTIFICATION_URL", () => {
+    assert.deepEqual(loadConfig(coverflexEnv).notifications, []);
+    const config = loadConfig({
+      ...coverflexEnv,
+      NOTIFICATION_URL: "ntfy://ntfy.sh/a discord://t@1",
+    });
     assert.deepEqual(
-      loadConfig({ ...coverflexEnv, TELEGRAM_BOT_TOKEN: "t", TELEGRAM_CHAT_ID: "42" }).telegram,
-      { botToken: "t", chatId: "42" },
+      config.notifications.map((channel) => channel.name),
+      ["ntfy", "discord"],
     );
-    assert.throws(() => loadConfig({ ...coverflexEnv, TELEGRAM_CHAT_ID: "42" }), /BOT_TOKEN/);
+    assert.throws(() => loadConfig({ ...coverflexEnv, NOTIFICATION_URL: "x://y" }), /unsupported/);
   });
 });

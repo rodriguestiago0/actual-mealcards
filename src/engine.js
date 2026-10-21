@@ -57,7 +57,7 @@ export async function checkCoverflexTokenExpiry(config, now = new Date()) {
       ? "Coverflex user agent token has expired"
       : `Coverflex user agent token expires in ${daysLeft} day(s)`;
   log.warn(`${message}; run \`mealcards get-coverflex-token\` to renew it`);
-  await notify(config.telegram, `⚠️ actual-mealcards: ${message}. Run get-coverflex-token.`);
+  await notify(config.notifications, `⚠️ actual-mealcards: ${message}. Run get-coverflex-token.`);
 }
 
 export const imports = {
@@ -80,7 +80,7 @@ function runExclusive(fn) {
   return run;
 }
 
-/** Runs every enabled import; failures are logged and sent to Telegram. */
+/** Runs every enabled import; failures are logged and notified. */
 export function runEnabledImports(config, registry = imports) {
   return runExclusive(async () => {
     let ok = true;
@@ -92,7 +92,10 @@ export function runEnabledImports(config, registry = imports) {
       } catch (err) {
         ok = false;
         log.error(`${name} import failed:`, err);
-        await notify(config.telegram, `❌ actual-mealcards: ${name} import failed\n${err.message}`);
+        await notify(
+          config.notifications,
+          `❌ actual-mealcards: ${name} import failed\n${err.message}`,
+        );
       }
     }
     return ok;
