@@ -4,6 +4,7 @@ When you're ready, start your application by running:
 `docker compose up --build`.
 
 Docker-comple.yaml example:
+
 ```
 version: '3'
 services:
@@ -14,14 +15,14 @@ services:
       - PUID=1003
       - PGID=100
       - TZ=Europe/Lisbon
-      - EDENRED_USERNAME= 
-      - EDENRED_PIN= 
+      - EDENRED_USERNAME=
+      - EDENRED_PIN=
       - EDENRED_VERSION= # default 4.1.0
       - EDENRED_ACCOUNT=
       - EDENRED_ACTUAL_ACCOUNT=
       - EDENRED_ACCOUNT_1=
       - EDENRED_ACTUAL_ACCOUNT_1=
-      - ACTUAL_SERVER_URL= 
+      - ACTUAL_SERVER_URL=
       - ACTUAL_SERVER_PASSWORD=
       - ACTUAL_FILE_PASSWORD=
       - ACTUAL_SYNC_ID=
