@@ -96,3 +96,18 @@ describe("loadConfig", () => {
     assert.equal(config.edenred.importFrom, "1970-01-01");
   });
 });
+
+describe("loadConfig notifications", () => {
+  it("reads RUN_ON_START", () => {
+    assert.equal(loadConfig({ ...coverflexEnv, RUN_ON_START: "yes" }).runOnStart, true);
+  });
+
+  it("configures Telegram only when both settings are present", () => {
+    assert.equal(loadConfig(coverflexEnv).telegram, null);
+    assert.deepEqual(
+      loadConfig({ ...coverflexEnv, TELEGRAM_BOT_TOKEN: "t", TELEGRAM_CHAT_ID: "42" }).telegram,
+      { botToken: "t", chatId: "42" },
+    );
+    assert.throws(() => loadConfig({ ...coverflexEnv, TELEGRAM_CHAT_ID: "42" }), /BOT_TOKEN/);
+  });
+});

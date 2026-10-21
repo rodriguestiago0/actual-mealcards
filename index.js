@@ -2,7 +2,8 @@
 import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
 import { loadConfig, loadEnvFile } from "./src/config.js";
-import { importCoverflex, importEdenred } from "./src/engine.js";
+import { imports } from "./src/engine.js";
+import { silenceLibraryLogs } from "./src/log.js";
 import { getUserAgentToken } from "./src/providers/coverflex.js";
 
 const USAGE = `
@@ -34,16 +35,16 @@ function requireProvider(config, name) {
 const commands = {
   "import-myedenred": async (config) => {
     requireProvider(config, "edenred");
-    await importEdenred(config);
+    await imports.Edenred.run(config);
   },
   "import-coverflex": async (config) => {
     requireProvider(config, "coverflex");
-    await importCoverflex(config);
+    await imports.Coverflex.run(config);
   },
   "get-coverflex-token": async (config) => {
     requireProvider(config, "coverflex");
     const token = await getUserAgentToken(config.coverflex, askOtp);
-    console.log("Your COVERFLEX_USER_AGENT_TOKEN is:", token);
+    process.stdout.write(`Your COVERFLEX_USER_AGENT_TOKEN is: ${token}\n`);
   },
 };
 // Misspelled name kept for backwards compatibility.
@@ -64,6 +65,7 @@ if (!commands[command]) {
   process.exit(1);
 }
 
+silenceLibraryLogs();
 try {
   loadEnvFile();
   await commands[command](loadConfig());

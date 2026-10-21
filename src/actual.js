@@ -1,11 +1,14 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import * as api from "@actual-app/api";
-
-const debug = process.env.DEBUG ? console.debug : () => {};
+import * as actualApi from "@actual-app/api";
+import { log } from "./log.js";
 
 /** Opens the budget, runs fn(api), then syncs and always shuts down. */
-export async function withBudget({ serverURL, password, filePassword, syncId, dataDir }, fn) {
+export async function withBudget(
+  { serverURL, password, filePassword, syncId, dataDir },
+  fn,
+  api = actualApi,
+) {
   const budgetDir = join(dataDir, syncId);
   await mkdir(budgetDir, { recursive: true });
 
@@ -25,17 +28,17 @@ export async function withBudget({ serverURL, password, filePassword, syncId, da
   }
 }
 
-export async function importTransactions(accountId, transactions) {
-  debug("Transactions to import:", transactions);
+export async function importTransactions(api, accountId, transactions) {
+  log.debug("Transactions to import:", transactions);
   const result = await api.importTransactions(accountId, transactions);
-  console.info(
+  log.info(
     `Imported into ${accountId}: ${result.added.length} added, ${result.updated.length} updated`,
   );
-  if (result.errors?.length) console.error("Actual import errors:", result.errors);
+  if (result.errors?.length) log.error("Actual import errors:", result.errors);
 }
 
 /** Deletes the Actual transactions whose imported_id is in importedIds. */
-export async function deleteByImportedIds(accountId, importedIds, sinceDate) {
+export async function deleteByImportedIds(api, accountId, importedIds, sinceDate) {
   const wanted = new Set(importedIds);
   const today = new Date().toISOString().slice(0, 10);
   const existing = await api.getTransactions(accountId, sinceDate, today);
@@ -45,6 +48,6 @@ export async function deleteByImportedIds(accountId, importedIds, sinceDate) {
     await api.deleteTransaction(transaction.id);
   }
   if (toDelete.length > 0) {
-    console.info(`Deleted ${toDelete.length} cancelled transaction(s) from ${accountId}`);
+    log.info(`Deleted ${toDelete.length} cancelled transaction(s) from ${accountId}`);
   }
 }

@@ -42,6 +42,12 @@ export function collectAccountMapping(env, prefix) {
   return mapping;
 }
 
+function loadTelegram(env) {
+  if (!env.TELEGRAM_BOT_TOKEN && !env.TELEGRAM_CHAT_ID) return null;
+  requireEnv(env, ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]);
+  return { botToken: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_CHAT_ID };
+}
+
 export function loadConfig(env = process.env) {
   const enableEdenred = stringToBoolean(env.ENABLE_EDENRED);
   const enableCoverflex = stringToBoolean(env.ENABLE_COVERFLEX);
@@ -60,6 +66,8 @@ export function loadConfig(env = process.env) {
       dataDir: env.ACTUAL_DATA_DIR || "./temp_data_actual",
     },
     cronExpression: env.CRON_EXPRESSION || DEFAULT_CRON_EXPRESSION,
+    runOnStart: stringToBoolean(env.RUN_ON_START),
+    telegram: loadTelegram(env),
     edenred: null,
     coverflex: null,
   };
