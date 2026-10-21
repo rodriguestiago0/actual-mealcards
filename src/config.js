@@ -1,3 +1,5 @@
+import { parseNotificationUrls } from "./notify.js";
+
 const DEFAULT_IMPORT_FROM = "1970-01-01";
 const DEFAULT_CRON_EXPRESSION = "0 0 */4 * * *";
 
@@ -60,6 +62,8 @@ export function loadConfig(env = process.env) {
       dataDir: env.ACTUAL_DATA_DIR || "./temp_data_actual",
     },
     cronExpression: env.CRON_EXPRESSION || DEFAULT_CRON_EXPRESSION,
+    runOnStart: stringToBoolean(env.RUN_ON_START),
+    notifications: parseNotificationUrls(env.NOTIFICATION_URL),
     edenred: null,
     coverflex: null,
   };

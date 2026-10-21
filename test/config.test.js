@@ -96,3 +96,22 @@ describe("loadConfig", () => {
     assert.equal(config.edenred.importFrom, "1970-01-01");
   });
 });
+
+describe("loadConfig notifications", () => {
+  it("reads RUN_ON_START", () => {
+    assert.equal(loadConfig({ ...coverflexEnv, RUN_ON_START: "yes" }).runOnStart, true);
+  });
+
+  it("parses NOTIFICATION_URL", () => {
+    assert.deepEqual(loadConfig(coverflexEnv).notifications, []);
+    const config = loadConfig({
+      ...coverflexEnv,
+      NOTIFICATION_URL: "ntfy://ntfy.sh/a discord://t@1",
+    });
+    assert.deepEqual(
+      config.notifications.map((channel) => channel.name),
+      ["ntfy", "discord"],
+    );
+    assert.throws(() => loadConfig({ ...coverflexEnv, NOTIFICATION_URL: "x://y" }), /unsupported/);
+  });
+});

@@ -10,6 +10,8 @@ services:
       - ACTUAL_SYNC_ID=
       - ACTUAL_FILE_PASSWORD= # optional, for end-to-end encrypted budgets
       - CRON_EXPRESSION= # default "0 0 */4 * * *"
+      - RUN_ON_START=false
+      - NOTIFICATION_URL= # optional, e.g. telegram://TOKEN@telegram?chats=CHAT_ID
       - ENABLE_EDENRED=true
       - EDENRED_USERNAME=
       - EDENRED_PIN=

@@ -54,6 +54,16 @@ export async function getTransactions(coverflexConfig, pocketId) {
   return mapTransactions(movements, coverflexConfig.importFrom);
 }
 
+/** Expiry date of a user agent token (a JWT), or null when it can't be read. */
+export function tokenExpiry(token) {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+    return typeof payload.exp === "number" ? new Date(payload.exp * 1000) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Logs in with an OTP and trusts this device, returning a long-lived user agent token. */
 export async function getUserAgentToken({ username, password }, askOtp) {
   const credentials = { email: username, password };

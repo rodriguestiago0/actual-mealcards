@@ -72,3 +72,33 @@ describe("coverflex.mapTransactions", () => {
     assert.deepEqual(cancelledIds, ["m3"]);
   });
 });
+
+describe("edenred.mapTransactions duplicates", () => {
+  it("keeps identical movements apart, with the first keeping the legacy id", () => {
+    const movement = {
+      transactionName: "Cafe",
+      transactionDate: "2024-12-02T09:30:00",
+      amount: -1,
+    };
+    const [single] = edenred.mapTransactions([movement], "1970-01-01");
+    const [first, second] = edenred.mapTransactions([movement, { ...movement }], "1970-01-01");
+    assert.equal(first.imported_id, single.imported_id);
+    assert.notEqual(second.imported_id, first.imported_id);
+  });
+});
+
+describe("coverflex.tokenExpiry", () => {
+  const jwt = (payload) => `h.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.s`;
+
+  it("reads the exp claim", () => {
+    assert.deepEqual(
+      coverflex.tokenExpiry(jwt({ exp: 1_824_727_788 })),
+      new Date(1_824_727_788_000),
+    );
+  });
+
+  it("returns null for unreadable tokens", () => {
+    assert.equal(coverflex.tokenExpiry("not-a-jwt"), null);
+    assert.equal(coverflex.tokenExpiry(jwt({})), null);
+  });
+});
