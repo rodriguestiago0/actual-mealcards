@@ -3,62 +3,75 @@
 When you're ready, start your application by running:
 `docker compose up --build`.
 
-Docker-comple.yaml example:
+Images are published for `linux/amd64`, `linux/arm64` and `linux/arm/v7` (the latter runs on Node 22).
 
-```
-version: '3'
+`docker-compose.yaml` example:
+
+```yaml
 services:
-  actual_mealcards:
-    container_name: actual_mealcards
-    image: docker.io/rodriguestiago0/actual_mealcards
+  actual-mealcards:
+    container_name: actual-mealcards
+    image: docker.io/rodriguestiago0/actual-mealcards:latest
     environment:
-      - PUID=1003
-      - PGID=100
       - TZ=Europe/Lisbon
+      - ACTUAL_SERVER_URL=
+      - ACTUAL_SERVER_PASSWORD=
+      - ACTUAL_SYNC_ID=
+      - ACTUAL_FILE_PASSWORD= # optional, for end-to-end encrypted budgets
+      - CRON_EXPRESSION= # default "0 0 */4 * * *"
+      - RUN_ON_START=false
+      - NOTIFICATION_URL= # optional, e.g. telegram://TOKEN@telegram?chats=CHAT_ID
+      - DEBUG= # set to 1 for verbose Actual API logs
+      - ENABLE_EDENRED=true
       - EDENRED_USERNAME=
       - EDENRED_PIN=
       - EDENRED_VERSION= # default 4.1.0
+      - EDENRED_IMPORT_FROM= # default 1970-01-01
       - EDENRED_ACCOUNT=
       - EDENRED_ACTUAL_ACCOUNT=
-      - EDENRED_ACCOUNT_1=
+      - EDENRED_ACCOUNT_1= # optional extra accounts: _1, _2, ...
       - EDENRED_ACTUAL_ACCOUNT_1=
-      - ACTUAL_SERVER_URL=
-      - ACTUAL_SERVER_PASSWORD=
-      - ACTUAL_FILE_PASSWORD=
-      - ACTUAL_SYNC_ID=
-      - CRON_EXPRESSION= # default value is "0 */4 * * *"
+      - ENABLE_COVERFLEX=true
       - COVERFLEX_USERNAME=
       - COVERFLEX_PASSWORD=
       - COVERFLEX_USER_AGENT_TOKEN=
-      - COVERFLEX_IMPORT_FROM=
+      - COVERFLEX_IMPORT_FROM= # default 1970-01-01
       - COVERFLEX_ACCOUNT=
       - COVERFLEX_ACTUAL_ACCOUNT=
-      - COVERFLEX_ACCOUNT_1=
+      - COVERFLEX_ACCOUNT_1= # optional extra accounts: _1, _2, ...
       - COVERFLEX_ACTUAL_ACCOUNT_1=
     restart: unless-stopped
 ```
 
+`docker run` example:
+
+```bash
+docker run -d --name actual-mealcards \
+  -e TZ=Europe/Lisbon \
+  -e ACTUAL_SERVER_URL= \
+  -e ACTUAL_SERVER_PASSWORD= \
+  -e ACTUAL_SYNC_ID= \
+  -e ACTUAL_FILE_PASSWORD= \
+  -e CRON_EXPRESSION="0 0 */4 * * *" \
+  -e RUN_ON_START=false \
+  -e NOTIFICATION_URL= \
+  -e ENABLE_EDENRED=true \
+  -e EDENRED_USERNAME= \
+  -e EDENRED_PIN= \
+  -e EDENRED_ACCOUNT= \
+  -e EDENRED_ACTUAL_ACCOUNT= \
+  -e ENABLE_COVERFLEX=true \
+  -e COVERFLEX_USERNAME= \
+  -e COVERFLEX_PASSWORD= \
+  -e COVERFLEX_USER_AGENT_TOKEN= \
+  -e COVERFLEX_ACCOUNT= \
+  -e COVERFLEX_ACTUAL_ACCOUNT= \
+  --restart unless-stopped \
+  rodriguestiago0/actual-mealcards:latest
 ```
-docker run -d --name actual_mealcards \
-    -e 'EDENRED_USERNAME=' \
-    -e 'EDENRED_PIN=' \
-    -e 'EDENRED_VERSION=' \
-    -e 'EDENRED_ACCOUNT=' \
-    -e 'ACTUAL_ACCOUNT=' \
-    -e 'EDENRED_ACCOUNT_1=' \
-    -e 'ACTUAL_ACCOUNT_1=' \
-    -e 'ACTUAL_SERVER_URL= ' \
-    -e 'ACTUAL_SERVER_PASSWORD=' \
-    - 'ACTUAL_FILE_PASSWORD=' \
-    -e 'ACTUAL_SYNC_ID=' \
-    -e CRON_EXPRESSION= # default value is "0 */4 * '* *"' \
-    -e COVERFLEX_USERNAME= \
-    -e COVERFLEX_PASSWORD= \
-    -e COVERFLEX_USER_AGENT_TOKEN= \
-    -e COVERFLEX_IMPORT_FROM= \
-    -e COVERFLEX_ACCOUNT= \
-    -e COVERFLEX_ACTUAL_ACCOUNT= \
-    -e COVERFLEX_ACCOUNT_1= \
-    -e COVERFLEX_ACTUAL_ACCOUNT_1=
-  --restart=on-failure rodriguestiago0/actual_mealcards:latest
+
+To get the Coverflex user agent token from the running container:
+
+```bash
+docker exec -it actual-mealcards node index.js get-coverflex-token
 ```

@@ -1,12 +1,10 @@
 # Meal cards - actual
 
-This project will help you import transaction from your Prepaid card into actual budget app.
+This project imports transactions from your prepaid meal cards into Actual Budget.
 
 Supported providers: My Edenred and Coverflex
 
-You need to provide your username and password and specify what the cadence you want to import transactions.
-
-**My Edenred note**: Pending transaction are being imported as cleared. If the transaction is deleted after you need to delete manally from the actual budget.
+**My Edenred note**: Pending transactions are imported as cleared. If one is later removed by Edenred, you need to delete it manually in Actual Budget.
 
 # My Edenred
 
@@ -16,23 +14,23 @@ User ID now is a `GUID` and not your email address.
 
 For `IOS` I used an app called `Proxyman` and checked the request to get the `UserID`. The `PIN` is your app `PIN`.
 
-Enabled the import by setting the flag `ENABLE_EDENRED` to `true`.
+Enable the import by setting `ENABLE_EDENRED` to `true` and fill in `EDENRED_USERNAME` and `EDENRED_PIN`.
 
 # Coverflex
 
+Set `ENABLE_COVERFLEX` to `true` and fill in `COVERFLEX_USERNAME`, `COVERFLEX_PASSWORD` and
+`COVERFLEX_USER_AGENT_TOKEN` (all three are required).
+
 ## Get User Agent Token
 
-To get the User Agent Token use the network tab of your browser.
+Run `node index.js get-coverflex-token` (or `docker exec -it actual-mealcards node index.js get-coverflex-token`),
+enter the OTP code when asked and set the printed token as `COVERFLEX_USER_AGENT_TOKEN`. You get a
+reminder before it expires (see [Notifications](#notifications)).
 
-Search for `https://menhir-api.coverflex.com/api/employee/movements?` and use the pocket_id as `COVERFLEX_ACCOUNT`
+## Get Account ID
 
-Enabled the import by setting the flag `ENABLE_COVERFLEX` to `true`.
-
-Or
-
-Fill your .env with `COVERFLEX_USERNAME` and `COVERFLEX_PASSWORD` and set `ENABLE_COVERFLEX` to `true`.
-
-Run the command get-coverflex-token. When asked enter OTP code. Set returned code to `COVERFLEX_USER_AGENT_TOKEN` on .env .
+Open Coverflex in your browser, look in the network tab for
+`https://menhir-api.coverflex.com/api/employee/movements?` and use its `pocket_id` as `COVERFLEX_ACCOUNT`.
 
 ### Setup
 
@@ -42,6 +40,8 @@ Run the command get-coverflex-token. When asked enter OTP code. Set returned cod
 - Run an import: `node index.js import-myedenred` or `node index.js import-coverflex`
 - Run on a schedule (`CRON_EXPRESSION`, default every 4 hours): `npm start`, or use `docker-compose.yaml`.
   Set `RUN_ON_START=true` to also import once at startup.
+- Limit how far back to import with `EDENRED_IMPORT_FROM` / `COVERFLEX_IMPORT_FROM` (`YYYY-MM-DD`, default `1970-01-01`)
+- The budget is cached in `ACTUAL_DATA_DIR` (default `./temp_data_actual`)
 
 ## Notifications
 
@@ -62,6 +62,8 @@ URLs can be reused:
 | Gotify   | `gotify://HOST/APP_TOKEN`                                                     |
 | Webhook  | `generic+https://HOST/PATH` (POSTs JSON `{"title": "...", "message": "..."}`) |
 
+Telegram also accepts `channels=` instead of `chats=`, as used by older Watchtower URLs.
+
 URL-encode special characters in credentials (e.g. `@` → `%40`). Email uses implicit TLS on port
 465 and STARTTLS otherwise; set `encryption=None` to disable it. Add `?scheme=http` (ntfy) or
 `?disabletls=yes` (Gotify) for plain-HTTP servers.
@@ -81,6 +83,8 @@ You need to manually create the accounts inside Actual, and then map them to the
 (`*_ACCOUNT` / `*_ACTUAL_ACCOUNT`, plus `*_ACCOUNT_1` / `*_ACTUAL_ACCOUNT_1`, `_2`, ... for extra accounts).
 
 Cancelled Coverflex transactions are removed from Actual automatically.
+
+Identical Edenred movements (same name, time and amount) are imported as separate transactions.
 
 # Commands
 
