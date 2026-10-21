@@ -1,42 +1,28 @@
-const { importMyEdenredTransactions, importCoverflexTransactions } = require("./engine.js");
-var cron = require('node-cron');
-const parser = require('cron-parser');
-const { getAppConfigFromEnv } = require("./config");
+import cron from "node-cron";
+import { loadConfig, loadEnvFile } from "./src/config.js";
+import { runEnabledImports } from "./src/engine.js";
 
-const appConfig = getAppConfigFromEnv();
+loadEnvFile();
+const config = loadConfig();
 
-var cronExpression = "0 0 */4 * * *";
-if (appConfig.CRON_EXPRESSION != "") {
-    cronExpression = appConfig.CRON_EXPRESSION
+console.info("Cron expression:", config.cronExpression);
+if (config.edenred) console.info("My Edenred import enabled");
+if (config.coverflex) console.info("Coverflex import enabled");
+
+const task = cron.schedule(
+  config.cronExpression,
+  async () => {
+    await runEnabledImports(config);
+    console.info("Next run:", task.getNextRun()?.toISOString());
+  },
+  { noOverlap: true },
+);
+console.info("Next run:", task.getNextRun()?.toISOString());
+
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.once(signal, async () => {
+    console.info(`Received ${signal}, stopping`);
+    await task.stop();
+    process.exit(0);
+  });
 }
-console.info("Defined cron is: ", cronExpression)
-const interval =  parser.CronExpressionParser.parse(cronExpression);
-console.info('Next run:', interval.next().toISOString());
-
-if (appConfig.ENABLE_EDENRED) {
-    console.info('Import for My Edenred enabled');
-}
-
-if (appConfig.ENABLE_COVERFLEX) {
-    console.info('Import for Coverflex enabled');
-}
-
-cron.schedule(cronExpression, async () => {
-    if (appConfig.ENABLE_EDENRED) {
-        console.info('Importing My Edenred');
-        try{
-            await importMyEdenredTransactions();
-        } catch (e) {
-            console.error(e)
-        }
-    }
-    if (appConfig.ENABLE_COVERFLEX) {
-        console.info('Importing Coverflex');
-        try{
-            await importCoverflexTransactions();
-        } catch (e) {
-            console.error(e)
-        }
-    }
-    console.info('Next run:', interval.next().toISOString());
-});
