@@ -26,20 +26,28 @@ async function fetchMovements(token, accountId) {
 }
 
 export function mapTransactions(movements, importFrom) {
+  const seen = new Map();
   return movements
     .map((movement) => ({ movement, date: movement.transactionDate.split("T")[0] }))
     .filter(({ date }) => date >= importFrom)
-    .map(({ movement, date }) => ({
-      date,
-      amount: Math.round(movement.amount * 100),
-      payee_name: movement.transactionName,
-      imported_payee: movement.transactionName,
-      // Edenred has no stable movement id, so derive one from its content.
-      imported_id: createHash("sha256")
-        .update(movement.transactionName + movement.transactionDate + movement.amount)
-        .digest("hex"),
-      cleared: true,
-    }));
+    .map(({ movement, date }) => {
+      // Edenred has no stable movement id, so derive one from its content. Identical movements
+      // (same name, time and amount) get an occurrence suffix so they aren't merged into one;
+      // the first keeps the unsuffixed id used by earlier versions.
+      const key = movement.transactionName + movement.transactionDate + movement.amount;
+      const occurrence = seen.get(key) ?? 0;
+      seen.set(key, occurrence + 1);
+      return {
+        date,
+        amount: Math.round(movement.amount * 100),
+        payee_name: movement.transactionName,
+        imported_payee: movement.transactionName,
+        imported_id: createHash("sha256")
+          .update(occurrence === 0 ? key : `${key}#${occurrence}`)
+          .digest("hex"),
+        cleared: true,
+      };
+    });
 }
 
 export async function getTransactions(edenredConfig, accountId) {
