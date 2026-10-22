@@ -1,56 +1,115 @@
-# Meal cards - actual
+# Actual Meal Cards
 
-This project imports transactions from your prepaid meal cards into Actual Budget.
+Imports transactions from prepaid meal cards into [Actual Budget](https://actualbudget.org).
+Supported providers: **My Edenred** (Portugal) and **Coverflex**. Run an import once from the
+command line or on a schedule, either with Node.js or with Docker (see
+[README.Docker.md](README.Docker.md)).
 
-Supported providers: My Edenred and Coverflex
+## Quick start
 
-**My Edenred note**: Pending transactions are imported as cleared. If one is later removed by Edenred, you need to delete it manually in Actual Budget.
+1. Requires Node.js 22+. Clone this repo and run `npm ci`.
+2. In Actual, create one account per card. The first import has no starting balance, so add it
+   to the account yourself.
+3. Copy `.env.sample` to `.env` and set:
+   - `ACTUAL_SERVER_URL` and `ACTUAL_SERVER_PASSWORD`
+   - `ACTUAL_SYNC_ID`, found in Actual under **Settings → Show advanced settings → Sync ID**
+   - `ACTUAL_FILE_PASSWORD`, only if the budget uses end-to-end encryption
+4. Set up at least one provider: [My Edenred](#my-edenred) or [Coverflex](#coverflex).
+5. Run one import: `node index.js import-myedenred` or `node index.js import-coverflex`. Import on
+   a schedule: `npm start`.
 
-# My Edenred
+`node index.js -h` lists the commands. The budget is cached in `ACTUAL_DATA_DIR` (default
+`./temp_data_actual`).
 
-## Get User ID
+## Account mapping
 
-User ID now is a `GUID` and not your email address.
+Each provider account maps to an Actual account through a pair of variables. The Actual account ID
+is in the app's URL when you open the account (`/accounts/<ID>`).
 
-For `IOS` I used an app called `Proxyman` and checked the request to get the `UserID`. The `PIN` is your app `PIN`.
+| Provider account    | Actual account             |
+| ------------------- | -------------------------- |
+| `EDENRED_ACCOUNT`   | `EDENRED_ACTUAL_ACCOUNT`   |
+| `COVERFLEX_ACCOUNT` | `COVERFLEX_ACTUAL_ACCOUNT` |
 
-Enable the import by setting `ENABLE_EDENRED` to `true` and fill in `EDENRED_USERNAME` and `EDENRED_PIN`.
+For more cards, add pairs with a `_1`, `_2`, ... suffix (e.g. `EDENRED_ACCOUNT_1` /
+`EDENRED_ACTUAL_ACCOUNT_1`). Numbering stops at the first incomplete pair.
 
-# Coverflex
+To skip older history, set `EDENRED_IMPORT_FROM` / `COVERFLEX_IMPORT_FROM` (`YYYY-MM-DD`). The
+default, `1970-01-01`, imports everything.
 
-Set `ENABLE_COVERFLEX` to `true` and fill in `COVERFLEX_USERNAME`, `COVERFLEX_PASSWORD` and
-`COVERFLEX_USER_AGENT_TOKEN` (all three are required).
+## My Edenred
 
-## Get User Agent Token
+Set `ENABLE_EDENRED=true` and fill in:
 
-Run `node index.js get-coverflex-token` (or `docker exec -it actual-mealcards node index.js get-coverflex-token`),
-enter the OTP code when asked and set the printed token as `COVERFLEX_USER_AGENT_TOKEN`. You get a
-reminder before it expires (see [Notifications](#notifications)).
+| Variable           | Value                                                                  |
+| ------------------ | ---------------------------------------------------------------------- |
+| `EDENRED_USERNAME` | Your Edenred user ID: a GUID, **not** your email address               |
+| `EDENRED_PIN`      | The PIN you use in the app                                             |
+| `EDENRED_ACCOUNT`  | Your card ID                                                           |
+| `EDENRED_VERSION`  | App version sent to Edenred (default `4.1.0`); raise it if login fails |
 
-## Get Account ID
+### Get the user ID and card ID
 
-Open Coverflex in your browser, look in the network tab for
-`https://menhir-api.coverflex.com/api/employee/movements?` and use its `pocket_id` as `COVERFLEX_ACCOUNT`.
+The app doesn't show these, so capture them from the mobile app's traffic with an HTTPS proxy
+(e.g. [Proxyman](https://proxyman.io) on iOS):
 
-### Setup
+- **User ID:** the `userId` in the body of the `POST .../authenticate/pin` request
+- **Card ID:** the `<ID>` in the path of `GET .../protected/card/<ID>/accountmovement`
 
-- Requires Node.js 22+
-- Clone this repo and install dependencies: `npm ci`
-- Copy `.env.sample` to `.env` and fill in the blanks
-- Run an import: `node index.js import-myedenred` or `node index.js import-coverflex`
-- Run on a schedule (`CRON_EXPRESSION`, default every 4 hours): `npm start`, or use `docker-compose.yaml`.
-  Set `RUN_ON_START=true` to also import once at startup.
-- Limit how far back to import with `EDENRED_IMPORT_FROM` / `COVERFLEX_IMPORT_FROM` (`YYYY-MM-DD`, default `1970-01-01`)
-- The budget is cached in `ACTUAL_DATA_DIR` (default `./temp_data_actual`)
+### Caveats
+
+- Every movement is imported as cleared, including pending ones. If Edenred later drops a pending
+  movement, delete it in Actual yourself.
+- Edenred movements have no ID, so the importer derives one from the name, time and amount. If one
+  of those changes when a movement settles, the settled movement is imported as a new transaction.
+- Identical movements (same name, time and amount) are imported as separate transactions.
+
+## Coverflex
+
+Set `ENABLE_COVERFLEX=true` and fill in `COVERFLEX_USERNAME` (your email), `COVERFLEX_PASSWORD`,
+`COVERFLEX_ACCOUNT` and `COVERFLEX_ACTUAL_ACCOUNT`. Imports also need `COVERFLEX_USER_AGENT_TOKEN`,
+which you generate with a command:
+
+### Get the user agent token
+
+The token lets imports log in without an OTP. Set every variable above, plus the Actual variables
+(and the Edenred ones, if Edenred is enabled); the token itself can still be empty. Then run:
+
+```bash
+node index.js get-coverflex-token
+# or, in Docker:
+docker exec -it actual-mealcards node index.js get-coverflex-token
+```
+
+Enter the OTP code Coverflex sends you, then set the printed token as `COVERFLEX_USER_AGENT_TOKEN`.
+In the 30 days before it expires, every Coverflex import logs a warning and, if
+[notifications](#notifications) are set up, sends a reminder (at most once a day).
+
+### Get the account ID
+
+Log in to Coverflex in a browser and open the developer tools' Network tab. Find the request to
+`https://menhir-api.coverflex.com/api/employee/movements` and copy the value of its `pocket_id`
+query parameter.
+
+### Caveats
+
+- Only confirmed movements are imported as cleared; pending ones are imported as uncleared.
+- Cancelled movements are deleted from Actual automatically.
+
+## Scheduling
+
+`npm start` runs every enabled import on `CRON_EXPRESSION`. The default, `0 0 */4 * * *`, runs
+every 4 hours; the expression takes 6 fields, the first being seconds. Imports never overlap. Set
+`RUN_ON_START=true` to also import once at startup.
 
 ## Notifications
 
-You get a message when a scheduled import fails, and a daily reminder in the 30 days before the
-Coverflex user agent token expires.
+You get a message when a scheduled import fails (imports run from the command line don't send
+one), and the Coverflex token reminder.
 
 Set `NOTIFICATION_URL` to one or more space-separated URLs. They use the same format as
-[Watchtower](https://containrrr.dev/watchtower/notifications/) (Shoutrrr), so existing Watchtower
-URLs can be reused:
+[Watchtower](https://containrrr.dev/watchtower/notifications/) (Shoutrrr), so you can reuse existing
+Watchtower URLs:
 
 | Service  | URL                                                                           |
 | -------- | ----------------------------------------------------------------------------- |
@@ -62,53 +121,16 @@ URLs can be reused:
 | Gotify   | `gotify://HOST/APP_TOKEN`                                                     |
 | Webhook  | `generic+https://HOST/PATH` (POSTs JSON `{"title": "...", "message": "..."}`) |
 
-Telegram also accepts `channels=` instead of `chats=`, as used by older Watchtower URLs.
+Telegram also accepts `channels=` instead of `chats=`, as older Watchtower URLs use it.
 
 URL-encode special characters in credentials (e.g. `@` → `%40`). Email uses implicit TLS on port
-465 and STARTTLS otherwise; set `encryption=None` to disable it. Add `?scheme=http` (ntfy) or
-`?disabletls=yes` (Gotify) for plain-HTTP servers.
+465 and STARTTLS on other ports; set `encryption=None` to disable it. For plain-HTTP servers, add
+`?scheme=http` (ntfy) or `?disabletls=yes` (Gotify).
 
 ## Logs
 
 Output is timestamped. The Actual API's own verbose logging is hidden unless `DEBUG=1`.
 
-Docker images are published for `linux/amd64`, `linux/arm64` and `linux/arm/v7` (the latter runs
-on Node 22).
+## Development
 
-## Some things worth noting
-
-The initial transaction import does not have a starting balance, so you will need to manually add that to Actual Budget.
-
-You need to manually create the accounts inside Actual, and then map them to the provider accounts
-(`*_ACCOUNT` / `*_ACTUAL_ACCOUNT`, plus `*_ACCOUNT_1` / `*_ACTUAL_ACCOUNT_1`, `_2`, ... for extra accounts).
-
-Cancelled Coverflex transactions are removed from Actual automatically.
-
-Identical Edenred movements (same name, time and amount) are imported as separate transactions.
-
-# Commands
-
-```
-  Usage
-    $ mealcards <command>
-
-  Commands
-    import-myedenred     Sync My Edenred accounts to Actual Budget
-    import-coverflex     Sync Coverflex accounts to Actual Budget
-    get-coverflex-token  Log in to Coverflex with an OTP and print the user agent token
-```
-
-# Development
-
-`npm run lint`, `npm run format`, `npm test`.
-
-# Releases
-
-When Dependabot bumps `@actual-app/api`, the PR is auto-merged after CI passes, a new patch
-release (`vX.Y.Z` git tag) is created and the Docker image is published to
-`rodriguestiago0/actual-mealcards` (`latest`, `X.Y.Z`, `X.Y`). The git tag is the version
-source of truth; `package.json` `version` is not updated.
-
-This requires a fine-grained PAT (Contents + Pull requests: read/write) saved as the
-**Dependabot** secret `RELEASE_TOKEN`, "Allow auto-merge" enabled, and the `CI` checks
-required on `main`.
+`npm run lint`, `npm run format`, `npm test`. Release process: [RELEASING.md](RELEASING.md).
