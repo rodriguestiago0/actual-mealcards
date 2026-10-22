@@ -3,7 +3,7 @@ import { requestJson } from "../http.js";
 
 const BASE_URL = "https://www.myedenred.pt/edenred-customer/v2";
 
-async function authenticate({ username, pin, version }) {
+export async function login({ username, pin, version }) {
   const json = await requestJson(
     `${BASE_URL}/authenticate/pin?appVersion=${version}&appType=IOS&channel=MOBILE`,
     {
@@ -50,8 +50,6 @@ export function mapTransactions(movements, importFrom) {
     });
 }
 
-export async function getTransactions(edenredConfig, accountId) {
-  const token = await authenticate(edenredConfig);
-  const movements = await fetchMovements(token, accountId);
-  return mapTransactions(movements, edenredConfig.importFrom);
+export async function getTransactions(token, accountId, importFrom) {
+  return mapTransactions(await fetchMovements(token, accountId), importFrom);
 }

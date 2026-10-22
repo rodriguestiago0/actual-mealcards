@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 import { deleteByImportedIds, withBudget } from "../src/actual.js";
-import { checkCoverflexTokenExpiry, runEnabledImports } from "../src/engine.js";
+import { checkCoverflexTokenExpiry, importCoverflex, runEnabledImports } from "../src/engine.js";
 import { parseNotificationUrls } from "../src/notify.js";
 import { callsTo, fakeApi } from "./fake-api.js";
 
@@ -41,6 +41,28 @@ describe("deleteByImportedIds", () => {
     });
     await deleteByImportedIds(api, "A", ["cancelled"], "2024-01-01");
     assert.deepEqual(callsTo(api, "deleteTransaction"), [["deleteTransaction", "t2"]]);
+  });
+});
+
+describe("importCoverflex", () => {
+  it("logs in once for all pockets", async (t) => {
+    const fetch = mock.method(globalThis, "fetch", async (url) =>
+      Response.json(url.endsWith("/sessions") ? { token: "t" } : { movements: { list: [] } }),
+    );
+    t.after(() => fetch.mock.restore());
+    const config = {
+      actual: actualConfig,
+      coverflex: {
+        userAgentToken: "ua",
+        importFrom: "1970-01-01",
+        accounts: { "pocket-1": "A", "pocket-2": "B" },
+      },
+    };
+
+    await importCoverflex(config, fakeApi());
+    const urls = fetch.mock.calls.map((call) => call.arguments[0]);
+    assert.equal(urls.filter((url) => url.endsWith("/sessions")).length, 1);
+    assert.equal(urls.filter((url) => url.includes("/movements")).length, 2);
   });
 });
 
