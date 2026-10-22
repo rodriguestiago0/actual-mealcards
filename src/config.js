@@ -85,8 +85,7 @@ export function loadConfig(env = process.env) {
       username: env.COVERFLEX_USERNAME,
       password: env.COVERFLEX_PASSWORD,
       userAgentToken: env.COVERFLEX_USER_AGENT_TOKEN || "",
-      // IMPORT_FROM was read by mistake in older versions; kept as a fallback.
-      importFrom: env.COVERFLEX_IMPORT_FROM || env.IMPORT_FROM || DEFAULT_IMPORT_FROM,
+      importFrom: env.COVERFLEX_IMPORT_FROM || DEFAULT_IMPORT_FROM,
       accounts: collectAccountMapping(env, "COVERFLEX"),
     };
   }
