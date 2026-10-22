@@ -63,9 +63,9 @@ if (!commands[command]) {
   process.exit(1);
 }
 
-silenceLibraryLogs();
 try {
   loadEnvFile();
+  silenceLibraryLogs();
   await commands[command](loadConfig());
 } catch (err) {
   console.error(err.message);

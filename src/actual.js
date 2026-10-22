@@ -23,9 +23,11 @@ export async function withBudget(
   try {
     await fn(api);
     await api.sync();
-  } finally {
-    await api.shutdown();
+  } catch (err) {
+    await api.shutdown().catch(() => {});
+    throw err;
   }
+  await api.shutdown();
 }
 
 /** Imports transactions and returns the errors Actual reported, if any. */
