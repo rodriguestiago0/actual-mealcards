@@ -27,6 +27,15 @@ describe("withBudget", () => {
     assert.equal(callsTo(api, "shutdown").length, 1);
     assert.equal(callsTo(api, "sync").length, 0);
   });
+
+  it("reports the callback's error when shutdown also fails", async () => {
+    const api = fakeApi();
+    api.shutdown = async () => Promise.reject(new Error("shutdown failed"));
+    await assert.rejects(
+      withBudget(actualConfig, async () => Promise.reject(new Error("boom")), api),
+      /boom/,
+    );
+  });
 });
 
 describe("deleteByImportedIds", () => {

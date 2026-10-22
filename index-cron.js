@@ -3,8 +3,8 @@ import { loadConfig, loadEnvFile } from "./src/config.js";
 import { runEnabledImports, whenIdle } from "./src/engine.js";
 import { log, silenceLibraryLogs } from "./src/log.js";
 
-silenceLibraryLogs();
 loadEnvFile();
+silenceLibraryLogs();
 const config = loadConfig();
 
 if (!cron.validate(config.cronExpression)) {

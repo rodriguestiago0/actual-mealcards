@@ -1,6 +1,7 @@
 {
   "name": "actual-mealcards",
   "version": "1.0.30",
+  "private": true,
   "description": "Import transactions from your meal cards into Actual Budget",
   "type": "module",
   "main": "index-cron.js",
