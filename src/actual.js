@@ -28,13 +28,16 @@ export async function withBudget(
   }
 }
 
+/** Imports transactions and returns the errors Actual reported, if any. */
 export async function importTransactions(api, accountId, transactions) {
   log.debug("Transactions to import:", transactions);
   const result = await api.importTransactions(accountId, transactions);
   log.info(
     `Imported into ${accountId}: ${result.added.length} added, ${result.updated.length} updated`,
   );
-  if (result.errors?.length) log.error("Actual import errors:", result.errors);
+  const errors = result.errors ?? [];
+  if (errors.length > 0) log.error("Actual import errors:", errors);
+  return errors;
 }
 
 /** Deletes the Actual transactions whose imported_id is in importedIds. */

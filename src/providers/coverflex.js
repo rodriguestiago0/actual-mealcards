@@ -15,9 +15,12 @@ export async function login({ username, password, userAgentToken }) {
 }
 
 async function fetchMovements(token, pocketId) {
-  const json = await requestJson(`${BASE_URL}/movements?pocket_id=${pocketId}&pagination=no`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const json = await requestJson(
+    `${BASE_URL}/movements?pocket_id=${encodeURIComponent(pocketId)}&pagination=no`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
   return json?.movements?.list ?? [];
 }
 
@@ -79,5 +82,6 @@ export async function getUserAgentToken({ username, password }, askOtp) {
     method: "POST",
     headers: { Authorization: `Bearer ${session.token}` },
   });
+  if (!trusted?.user_agent_token) throw new Error("Coverflex returned no user agent token");
   return trusted.user_agent_token;
 }

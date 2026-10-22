@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, mock } from "node:test";
 import * as coverflex from "../src/providers/coverflex.js";
 import * as edenred from "../src/providers/edenred.js";
 
@@ -100,5 +100,18 @@ describe("coverflex.tokenExpiry", () => {
   it("returns null for unreadable tokens", () => {
     assert.equal(coverflex.tokenExpiry("not-a-jwt"), null);
     assert.equal(coverflex.tokenExpiry(jwt({})), null);
+  });
+});
+
+describe("coverflex.getUserAgentToken", () => {
+  it("fails when Coverflex doesn't return a user agent token", async (t) => {
+    const fetch = mock.method(globalThis, "fetch", async (url) =>
+      Response.json(url.endsWith("/trust-user-agent") ? {} : { token: "session" }),
+    );
+    t.after(() => fetch.mock.restore());
+    await assert.rejects(
+      coverflex.getUserAgentToken({ username: "u", password: "p" }, async () => "123456"),
+      /no user agent token/,
+    );
   });
 });

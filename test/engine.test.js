@@ -64,6 +64,39 @@ describe("importCoverflex", () => {
     assert.equal(urls.filter((url) => url.endsWith("/sessions")).length, 1);
     assert.equal(urls.filter((url) => url.includes("/movements")).length, 2);
   });
+
+  it("syncs, then fails when Actual rejects part of an import", async (t) => {
+    const fetch = mock.method(globalThis, "fetch", async (url) =>
+      Response.json(
+        url.endsWith("/sessions")
+          ? { token: "t" }
+          : {
+              movements: {
+                list: [
+                  {
+                    id: "m1",
+                    executed_at: "2024-01-01T00:00:00Z",
+                    status: "confirmed",
+                    is_debit: true,
+                    amount: { amount: 100 },
+                    description: "Shop",
+                  },
+                ],
+              },
+            },
+      ),
+    );
+    t.after(() => fetch.mock.restore());
+    const api = fakeApi();
+    api.importTransactions = async () => ({ added: [], updated: [], errors: [{ message: "bad" }] });
+    const config = {
+      actual: actualConfig,
+      coverflex: { userAgentToken: "ua", importFrom: "1970-01-01", accounts: { "pocket-1": "A" } },
+    };
+
+    await assert.rejects(importCoverflex(config, api), /import errors for account\(s\): A/);
+    assert.equal(callsTo(api, "sync").length, 1);
+  });
 });
 
 describe("runEnabledImports", () => {
