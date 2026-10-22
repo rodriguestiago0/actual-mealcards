@@ -6,8 +6,16 @@ import * as edenred from "./providers/edenred.js";
 
 const TOKEN_EXPIRY_WARNING_DAYS = 30;
 
+/** Throws after the budget synced when Actual rejected part of an import. */
+function failOnImportErrors(failedAccounts) {
+  if (failedAccounts.length > 0) {
+    throw new Error(`Actual reported import errors for account(s): ${failedAccounts.join(", ")}`);
+  }
+}
+
 export async function importEdenred(config, budgetApi) {
   const token = await edenred.login(config.edenred);
+  const failedAccounts = [];
   await withBudget(
     config.actual,
     async (api) => {
@@ -22,15 +30,18 @@ export async function importEdenred(config, budgetApi) {
           log.info("No transactions to import");
           continue;
         }
-        await importTransactions(api, actualAccount, transactions);
+        const errors = await importTransactions(api, actualAccount, transactions);
+        if (errors.length > 0) failedAccounts.push(actualAccount);
       }
     },
     budgetApi,
   );
+  failOnImportErrors(failedAccounts);
 }
 
 export async function importCoverflex(config, budgetApi) {
   const token = await coverflex.login(config.coverflex);
+  const failedAccounts = [];
   await withBudget(
     config.actual,
     async (api) => {
@@ -44,7 +55,8 @@ export async function importCoverflex(config, budgetApi) {
         if (transactions.length === 0) {
           log.info("No transactions to import");
         } else {
-          await importTransactions(api, actualAccount, transactions);
+          const errors = await importTransactions(api, actualAccount, transactions);
+          if (errors.length > 0) failedAccounts.push(actualAccount);
         }
         if (cancelledIds.length > 0) {
           await deleteByImportedIds(api, actualAccount, cancelledIds, config.coverflex.importFrom);
@@ -53,6 +65,7 @@ export async function importCoverflex(config, budgetApi) {
     },
     budgetApi,
   );
+  failOnImportErrors(failedAccounts);
 }
 
 let lastExpiryWarning = null;
@@ -93,6 +106,11 @@ function runExclusive(fn) {
   const run = queue.then(fn);
   queue = run.catch(() => {});
   return run;
+}
+
+/** Resolves once the running import, if any, has finished. */
+export function whenIdle() {
+  return queue;
 }
 
 /** Runs every enabled import; failures are logged and notified. */
