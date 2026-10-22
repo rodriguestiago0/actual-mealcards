@@ -47,8 +47,6 @@ const commands = {
     process.stdout.write(`Your COVERFLEX_USER_AGENT_TOKEN is: ${token}\n`);
   },
 };
-// Misspelled name kept for backwards compatibility.
-commands["import-myendenred"] = commands["import-myedenred"];
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,

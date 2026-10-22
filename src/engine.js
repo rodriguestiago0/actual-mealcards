@@ -6,38 +6,53 @@ import * as edenred from "./providers/edenred.js";
 
 const TOKEN_EXPIRY_WARNING_DAYS = 30;
 
-export async function importEdenred(config) {
-  await withBudget(config.actual, async (api) => {
-    for (const [edenredAccount, actualAccount] of Object.entries(config.edenred.accounts)) {
-      log.info(`Importing Edenred account ${edenredAccount}`);
-      const transactions = await edenred.getTransactions(config.edenred, edenredAccount);
-      if (transactions.length === 0) {
-        log.info("No transactions to import");
-        continue;
-      }
-      await importTransactions(api, actualAccount, transactions);
-    }
-  });
-}
-
-export async function importCoverflex(config) {
-  await withBudget(config.actual, async (api) => {
-    for (const [pocketId, actualAccount] of Object.entries(config.coverflex.accounts)) {
-      log.info(`Importing Coverflex pocket ${pocketId}`);
-      const { transactions, cancelledIds } = await coverflex.getTransactions(
-        config.coverflex,
-        pocketId,
-      );
-      if (transactions.length === 0) {
-        log.info("No transactions to import");
-      } else {
+export async function importEdenred(config, budgetApi) {
+  const token = await edenred.login(config.edenred);
+  await withBudget(
+    config.actual,
+    async (api) => {
+      for (const [edenredAccount, actualAccount] of Object.entries(config.edenred.accounts)) {
+        log.info(`Importing Edenred account ${edenredAccount}`);
+        const transactions = await edenred.getTransactions(
+          token,
+          edenredAccount,
+          config.edenred.importFrom,
+        );
+        if (transactions.length === 0) {
+          log.info("No transactions to import");
+          continue;
+        }
         await importTransactions(api, actualAccount, transactions);
       }
-      if (cancelledIds.length > 0) {
-        await deleteByImportedIds(api, actualAccount, cancelledIds, config.coverflex.importFrom);
+    },
+    budgetApi,
+  );
+}
+
+export async function importCoverflex(config, budgetApi) {
+  const token = await coverflex.login(config.coverflex);
+  await withBudget(
+    config.actual,
+    async (api) => {
+      for (const [pocketId, actualAccount] of Object.entries(config.coverflex.accounts)) {
+        log.info(`Importing Coverflex pocket ${pocketId}`);
+        const { transactions, cancelledIds } = await coverflex.getTransactions(
+          token,
+          pocketId,
+          config.coverflex.importFrom,
+        );
+        if (transactions.length === 0) {
+          log.info("No transactions to import");
+        } else {
+          await importTransactions(api, actualAccount, transactions);
+        }
+        if (cancelledIds.length > 0) {
+          await deleteByImportedIds(api, actualAccount, cancelledIds, config.coverflex.importFrom);
+        }
       }
-    }
-  });
+    },
+    budgetApi,
+  );
 }
 
 let lastExpiryWarning = null;

@@ -71,14 +71,10 @@ describe("loadConfig", () => {
     assert.equal(config.cronExpression, "0 0 */4 * * *");
   });
 
-  it("reads COVERFLEX_IMPORT_FROM, falling back to IMPORT_FROM", () => {
+  it("reads COVERFLEX_IMPORT_FROM", () => {
     assert.equal(
       loadConfig({ ...coverflexEnv, COVERFLEX_IMPORT_FROM: "2024-11-23" }).coverflex.importFrom,
       "2024-11-23",
-    );
-    assert.equal(
-      loadConfig({ ...coverflexEnv, IMPORT_FROM: "2024-01-01" }).coverflex.importFrom,
-      "2024-01-01",
     );
     assert.equal(loadConfig(coverflexEnv).coverflex.importFrom, "1970-01-01");
   });

@@ -2,7 +2,7 @@ import { requestJson } from "../http.js";
 
 const BASE_URL = "https://menhir-api.coverflex.com/api/employee";
 
-async function authenticate({ username, password, userAgentToken }) {
+export async function login({ username, password, userAgentToken }) {
   if (!userAgentToken) {
     throw new Error("Missing COVERFLEX_USER_AGENT_TOKEN; run `mealcards get-coverflex-token`");
   }
@@ -48,10 +48,8 @@ export function mapTransactions(movements, importFrom) {
   return { transactions, cancelledIds };
 }
 
-export async function getTransactions(coverflexConfig, pocketId) {
-  const token = await authenticate(coverflexConfig);
-  const movements = await fetchMovements(token, pocketId);
-  return mapTransactions(movements, coverflexConfig.importFrom);
+export async function getTransactions(token, pocketId, importFrom) {
+  return mapTransactions(await fetchMovements(token, pocketId), importFrom);
 }
 
 /** Expiry date of a user agent token (a JWT), or null when it can't be read. */
