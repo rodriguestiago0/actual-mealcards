@@ -68,10 +68,31 @@ describe("importCoverflex", () => {
       },
     };
 
-    await importCoverflex(config, fakeApi());
+    await importCoverflex(config, fakeApi({ accounts: [{ id: "A" }, { id: "B" }] }));
     const urls = fetch.mock.calls.map((call) => call.arguments[0]);
     assert.equal(urls.filter((url) => url.endsWith("/sessions")).length, 1);
     assert.equal(urls.filter((url) => url.includes("/movements")).length, 2);
+  });
+
+  it("fails before importing when an Actual account isn't open", async (t) => {
+    const fetch = mock.method(globalThis, "fetch", async (url) =>
+      Response.json(url.endsWith("/sessions") ? { token: "t" } : { movements: { list: [] } }),
+    );
+    t.after(() => fetch.mock.restore());
+    const config = {
+      actual: actualConfig,
+      coverflex: {
+        userAgentToken: "ua",
+        importFrom: "1970-01-01",
+        accounts: { "pocket-1": "A", "pocket-2": "gone" },
+      },
+    };
+    const api = fakeApi({ accounts: [{ id: "A" }, { id: "gone", closed: true }] });
+    await assert.rejects(
+      importCoverflex(config, api),
+      /Coverflex: not an open account in this budget: "gone" \(for pocket-2\)/,
+    );
+    assert.equal(callsTo(api, "importTransactions").length, 0);
   });
 
   it("syncs, then fails when Actual rejects part of an import", async (t) => {
@@ -96,7 +117,7 @@ describe("importCoverflex", () => {
       ),
     );
     t.after(() => fetch.mock.restore());
-    const api = fakeApi();
+    const api = fakeApi({ accounts: [{ id: "A" }] });
     api.importTransactions = async () => ({ added: [], updated: [], errors: [{ message: "bad" }] });
     const config = {
       actual: actualConfig,

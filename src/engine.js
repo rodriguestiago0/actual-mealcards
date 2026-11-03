@@ -1,4 +1,9 @@
-import { deleteByImportedIds, importTransactions, withBudget } from "./actual.js";
+import {
+  deleteByImportedIds,
+  importTransactions,
+  requireOpenAccounts,
+  withBudget,
+} from "./actual.js";
 import { log } from "./log.js";
 import { notify } from "./notify.js";
 import * as coverflex from "./providers/coverflex.js";
@@ -19,6 +24,7 @@ export async function importEdenred(config, budgetApi) {
   await withBudget(
     config.actual,
     async (api) => {
+      await requireOpenAccounts(api, "Edenred", config.edenred.accounts);
       for (const [edenredAccount, actualAccount] of Object.entries(config.edenred.accounts)) {
         log.info(`Importing Edenred account ${edenredAccount}`);
         const transactions = await edenred.getTransactions(
@@ -45,6 +51,7 @@ export async function importCoverflex(config, budgetApi) {
   await withBudget(
     config.actual,
     async (api) => {
+      await requireOpenAccounts(api, "Coverflex", config.coverflex.accounts);
       for (const [pocketId, actualAccount] of Object.entries(config.coverflex.accounts)) {
         log.info(`Importing Coverflex pocket ${pocketId}`);
         const { transactions, cancelledIds } = await coverflex.getTransactions(
