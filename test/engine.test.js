@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
-import { deleteByImportedIds, withBudget } from "../src/actual.js";
+import { deleteByImportedIds, importTransactions, withBudget } from "../src/actual.js";
 import { checkCoverflexTokenExpiry, importCoverflex, runEnabledImports } from "../src/engine.js";
 import { parseNotificationUrls } from "../src/notify.js";
 import { callsTo, fakeApi } from "./fake-api.js";
@@ -35,6 +35,22 @@ describe("withBudget", () => {
       withBudget(actualConfig, async () => Promise.reject(new Error("boom")), api),
       /boom/,
     );
+  });
+});
+
+describe("importTransactions", () => {
+  it("doesn't reimport deleted transactions and pins title-case payee names", async () => {
+    const api = fakeApi();
+    const transactions = [{ imported_id: "x", amount: -100 }];
+    await importTransactions(api, "A", transactions);
+    assert.deepEqual(callsTo(api, "importTransactions"), [
+      [
+        "importTransactions",
+        "A",
+        transactions,
+        { reimportDeleted: false, payeeNameNormalization: "title-case" },
+      ],
+    ]);
   });
 });
 

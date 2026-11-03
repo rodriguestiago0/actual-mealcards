@@ -48,10 +48,17 @@ export async function requireOpenAccounts(api, provider, accounts) {
   }
 }
 
-/** Imports transactions and returns the errors Actual reported, if any. */
+/**
+ * Imports transactions and returns the errors Actual reported, if any. A transaction the user
+ * deleted in Actual stays deleted: its imported_id still matches the deleted row, so it is not
+ * added again. Payee names are title-cased, Actual's default, pinned so an API update can't change it.
+ */
 export async function importTransactions(api, accountId, transactions) {
   log.debug("Transactions to import:", transactions);
-  const result = await api.importTransactions(accountId, transactions);
+  const result = await api.importTransactions(accountId, transactions, {
+    reimportDeleted: false,
+    payeeNameNormalization: "title-case",
+  });
   log.info(
     `Imported into ${accountId}: ${result.added.length} added, ${result.updated.length} updated`,
   );
