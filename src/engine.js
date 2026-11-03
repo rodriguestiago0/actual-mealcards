@@ -36,7 +36,7 @@ export async function importEdenred(config, budgetApi) {
           log.info("No transactions to import");
           continue;
         }
-        const errors = await importTransactions(api, actualAccount, transactions);
+        const errors = await importTransactions(api, actualAccount, transactions, config.actual);
         if (errors.length > 0) failedAccounts.push(actualAccount);
       }
     },
@@ -62,7 +62,7 @@ export async function importCoverflex(config, budgetApi) {
         if (transactions.length === 0) {
           log.info("No transactions to import");
         } else {
-          const errors = await importTransactions(api, actualAccount, transactions);
+          const errors = await importTransactions(api, actualAccount, transactions, config.actual);
           if (errors.length > 0) failedAccounts.push(actualAccount);
         }
         if (cancelledIds.length > 0) {
