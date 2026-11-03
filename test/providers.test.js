@@ -21,6 +21,18 @@ describe("edenred.mapTransactions", () => {
     );
   });
 
+  // Changing these ids would import every Edenred movement again for existing users.
+  it("keeps the imported_id format of existing imports", () => {
+    const cafe = movements[1];
+    assert.deepEqual(
+      edenred.mapTransactions([cafe, cafe], "1970-01-01").map((t) => t.imported_id),
+      [
+        "ba501667fcf2b3fdb6f81afa58b61d2076931ef767a872892b713418b0954ce0",
+        "4b84d972e94d6c44a797fbfa2d3b86c5fbaacbac5e4f255174a0fefb244a2461",
+      ],
+    );
+  });
+
   it("derives a stable imported_id", () => {
     const [first] = edenred.mapTransactions(movements.slice(1, 2), "1970-01-01");
     const [second] = edenred.mapTransactions(movements.slice(1, 2), "1970-01-01");
