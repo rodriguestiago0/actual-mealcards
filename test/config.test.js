@@ -98,6 +98,14 @@ describe("loadConfig notifications", () => {
     assert.equal(loadConfig({ ...coverflexEnv, RUN_ON_START: "yes" }).runOnStart, true);
   });
 
+  it("reads REIMPORT_DELETED, off by default", () => {
+    assert.equal(loadConfig(coverflexEnv).actual.reimportDeleted, false);
+    assert.equal(
+      loadConfig({ ...coverflexEnv, REIMPORT_DELETED: "true" }).actual.reimportDeleted,
+      true,
+    );
+  });
+
   it("parses NOTIFICATION_URL", () => {
     assert.deepEqual(loadConfig(coverflexEnv).notifications, []);
     const config = loadConfig({

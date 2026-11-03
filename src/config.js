@@ -60,6 +60,7 @@ export function loadConfig(env = process.env) {
       filePassword: env.ACTUAL_FILE_PASSWORD || "",
       syncId: env.ACTUAL_SYNC_ID,
       dataDir: env.ACTUAL_DATA_DIR || "./temp_data_actual",
+      reimportDeleted: stringToBoolean(env.REIMPORT_DELETED),
     },
     cronExpression: env.CRON_EXPRESSION || DEFAULT_CRON_EXPRESSION,
     runOnStart: stringToBoolean(env.RUN_ON_START),
