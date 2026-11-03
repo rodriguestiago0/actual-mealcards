@@ -1,5 +1,5 @@
 /** Minimal in-memory stand-in for @actual-app/api, recording every call. */
-export function fakeApi({ transactions = {}, balances = {}, payees = [] } = {}) {
+export function fakeApi({ transactions = {}, balances = {}, payees = [], accounts = [] } = {}) {
   const calls = [];
   const record =
     (name, result) =>
@@ -14,6 +14,7 @@ export function fakeApi({ transactions = {}, balances = {}, payees = [] } = {}) 
     downloadBudget: record("downloadBudget"),
     sync: record("sync"),
     shutdown: record("shutdown"),
+    getAccounts: record("getAccounts", () => accounts),
     getTransactions: record("getTransactions", (accountId) => transactions[accountId] ?? []),
     getAccountBalance: record("getAccountBalance", (accountId) => balances[accountId] ?? 0),
     importTransactions: record("importTransactions", (_, txs) => ({ added: txs, updated: [] })),
