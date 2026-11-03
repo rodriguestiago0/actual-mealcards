@@ -37,6 +37,8 @@ For more cards, add pairs with a `_1`, `_2`, ... suffix (e.g. `EDENRED_ACCOUNT_1
 To skip older history, set `EDENRED_IMPORT_FROM` / `COVERFLEX_IMPORT_FROM` (`YYYY-MM-DD`). The
 default, `1970-01-01`, imports everything.
 
+A transaction you delete in Actual stays deleted: later imports don't add it again.
+
 ## My Edenred
 
 Set `ENABLE_EDENRED=true` and fill in:
