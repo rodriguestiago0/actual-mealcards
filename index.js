@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
-import { loadConfig, loadEnvFile } from "./src/config.js";
+import { loadConfig, loadCoverflexCredentials, loadEnvFile } from "./src/config.js";
 import { imports } from "./src/engine.js";
 import { silenceLibraryLogs } from "./src/log.js";
 import { getUserAgentToken } from "./src/providers/coverflex.js";
@@ -32,10 +32,6 @@ async function askOtp() {
   }
 }
 
-function requireProvider(config, name) {
-  if (!config[name]) throw new Error(`${name} import is not enabled`);
-}
-
 /**
  * Points the import at a private copy of the budget, removed when the process exits. The scheduler
  * may be using ACTUAL_DATA_DIR at the same time, and two Actual API instances must not share it.
@@ -47,20 +43,20 @@ function usePrivateBudgetCopy(config) {
   config.actual.dataDir = dir;
 }
 
+async function runImport(name, provider, { dryRun }) {
+  const config = loadConfig();
+  if (!config[name]) throw new Error(`${name} import is not enabled`);
+  config.actual.dryRun = dryRun;
+  usePrivateBudgetCopy(config);
+  await provider.run(config);
+}
+
 const commands = {
-  "import-myedenred": async (config) => {
-    requireProvider(config, "edenred");
-    usePrivateBudgetCopy(config);
-    await imports.Edenred.run(config);
-  },
-  "import-coverflex": async (config) => {
-    requireProvider(config, "coverflex");
-    usePrivateBudgetCopy(config);
-    await imports.Coverflex.run(config);
-  },
-  "get-coverflex-token": async (config) => {
-    requireProvider(config, "coverflex");
-    const token = await getUserAgentToken(config.coverflex, askOtp);
+  "import-myedenred": (options) => runImport("edenred", imports.Edenred, options),
+  "import-coverflex": (options) => runImport("coverflex", imports.Coverflex, options),
+  // Needs only the Coverflex credentials, not the Actual or import settings.
+  "get-coverflex-token": async () => {
+    const token = await getUserAgentToken(loadCoverflexCredentials(), askOtp);
     process.stdout.write(`Your COVERFLEX_USER_AGENT_TOKEN is: ${token}\n`);
   },
 };
@@ -86,9 +82,7 @@ if (!commands[command]) {
 try {
   loadEnvFile();
   silenceLibraryLogs();
-  const config = loadConfig();
-  config.actual.dryRun = values["dry-run"] ?? false;
-  await commands[command](config);
+  await commands[command]({ dryRun: values["dry-run"] ?? false });
 } catch (err) {
   console.error(err.message);
   process.exitCode = 1;

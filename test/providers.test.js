@@ -163,6 +163,37 @@ describe("coverflex.getUserAgentToken", () => {
       /no user agent token/,
     );
   });
+
+  it("asks for the OTP after a 4xx, but not after a network error or a 5xx", async (t) => {
+    const quiet = mock.method(process.stderr, "write", () => true);
+    t.after(() => quiet.mock.restore());
+    let first;
+    const fetch = mock.method(globalThis, "fetch", async (url, { body }) => {
+      if (url.endsWith("/trust-user-agent")) return Response.json({ user_agent_token: "uat" });
+      if (JSON.parse(body).otp) return Response.json({ token: "session" });
+      return first();
+    });
+    t.after(() => fetch.mock.restore());
+    let asked = 0;
+    const askOtp = async () => {
+      asked++;
+      return "123456";
+    };
+    const credentials = { username: "u", password: "p" };
+
+    first = () => new Response("otp required", { status: 401 });
+    assert.equal(await coverflex.getUserAgentToken(credentials, askOtp), "uat");
+    assert.equal(asked, 1);
+
+    first = () => new Response("down", { status: 502 });
+    await assert.rejects(
+      coverflex.getUserAgentToken(credentials, askOtp),
+      /Coverflex login failed, so no OTP was sent: POST \/api\/employee\/sessions failed: 502/,
+    );
+    first = () => Promise.reject(new TypeError("fetch failed", { cause: { code: "ENOTFOUND" } }));
+    await assert.rejects(coverflex.getUserAgentToken(credentials, askOtp), /ENOTFOUND/);
+    assert.equal(asked, 1);
+  });
 });
 
 describe("coverflex.countStatuses", () => {

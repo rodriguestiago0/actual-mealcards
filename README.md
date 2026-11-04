@@ -83,8 +83,8 @@ which you generate with a command:
 
 ### Get the user agent token
 
-The token lets imports log in without an OTP. Set every variable above, plus the Actual variables
-(and the Edenred ones, if Edenred is enabled); the token itself can still be empty. Then run:
+The token lets imports log in without an OTP. Set `COVERFLEX_USERNAME` and `COVERFLEX_PASSWORD`
+(nothing else is needed for this command), then run:
 
 ```bash
 node index.js get-coverflex-token

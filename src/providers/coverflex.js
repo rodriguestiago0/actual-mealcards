@@ -128,8 +128,16 @@ export function tokenExpiry(token) {
 /** Logs in with an OTP and trusts this device, returning a long-lived user agent token. */
 export async function getUserAgentToken({ username, password }, askOtp) {
   const credentials = { email: username, password };
-  // The first request triggers the OTP; it is expected to be rejected.
-  await requestJson(`${BASE_URL}/sessions`, { method: "POST", body: credentials }).catch(() => {});
+  // The first request triggers the OTP, and Coverflex rejects it with a 4xx. Anything else (a
+  // network error, a 5xx) means no OTP is coming, so say so instead of waiting for one.
+  try {
+    await requestJson(`${BASE_URL}/sessions`, { method: "POST", body: credentials });
+  } catch (err) {
+    if (!(err.status >= 400 && err.status < 500)) {
+      throw new Error(`Coverflex login failed, so no OTP was sent: ${err.message}`, { cause: err });
+    }
+    log.debug(`Coverflex asked for an OTP (${err.status}):`, err.body);
+  }
 
   const otp = await askOtp();
   const session = await requestJson(`${BASE_URL}/sessions`, {

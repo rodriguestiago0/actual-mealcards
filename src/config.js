@@ -125,6 +125,12 @@ export function loadConfig(env = process.env) {
   return config;
 }
 
+/** The Coverflex credentials alone, for get-coverflex-token, which doesn't touch Actual. */
+export function loadCoverflexCredentials(env = process.env) {
+  requireEnv(env, ["COVERFLEX_USERNAME", "COVERFLEX_PASSWORD"]);
+  return { username: env.COVERFLEX_USERNAME, password: env.COVERFLEX_PASSWORD };
+}
+
 /** Loads .env into process.env when present (Node's built-in replacement for dotenv). */
 export function loadEnvFile(path = ".env") {
   try {
