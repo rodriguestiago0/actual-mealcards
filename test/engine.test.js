@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
-import { deleteByImportedIds, importTransactions, withBudget } from "../src/actual.js";
+import {
+  deleteByImportedIds,
+  importTransactions,
+  updateChangedTransactions,
+  withBudget,
+} from "../src/actual.js";
 import { checkCoverflexTokenExpiry, importCoverflex, runEnabledImports } from "../src/engine.js";
 import { parseNotificationUrls } from "../src/notify.js";
 import { callsTo, fakeApi } from "./fake-api.js";
@@ -72,6 +77,52 @@ describe("deleteByImportedIds", () => {
     });
     await deleteByImportedIds(api, "A", ["cancelled"], "2024-01-01");
     assert.deepEqual(callsTo(api, "deleteTransaction"), [["deleteTransaction", "t2"]]);
+  });
+});
+
+describe("updateChangedTransactions", () => {
+  it("updates changed amounts and dates, but not reconciled or split transactions", async () => {
+    const existing = (id, overrides) => ({
+      id: `t-${id}`,
+      imported_id: id,
+      amount: -100,
+      date: "2024-01-01",
+      ...overrides,
+    });
+    const api = fakeApi({
+      transactions: {
+        A: [
+          existing("same"),
+          existing("amount"),
+          existing("date"),
+          existing("reconciled", { reconciled: true }),
+          existing("split", { is_parent: true }),
+          existing("other"),
+        ],
+      },
+    });
+    const incoming = (id, overrides) => ({
+      imported_id: id,
+      amount: -100,
+      date: "2024-01-01",
+      ...overrides,
+    });
+    await updateChangedTransactions(
+      api,
+      "A",
+      [
+        incoming("same"),
+        incoming("amount", { amount: -125 }),
+        incoming("date", { date: "2024-01-03" }),
+        incoming("reconciled", { amount: -125 }),
+        incoming("split", { amount: -125 }),
+      ],
+      "2024-01-01",
+    );
+    assert.deepEqual(callsTo(api, "updateTransaction"), [
+      ["updateTransaction", "t-amount", { amount: -125 }],
+      ["updateTransaction", "t-date", { date: "2024-01-03" }],
+    ]);
   });
 });
 

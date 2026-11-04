@@ -127,3 +127,14 @@ describe("coverflex.getUserAgentToken", () => {
     );
   });
 });
+
+describe("coverflex.countStatuses", () => {
+  it("counts movements per status", () => {
+    const movements = [{ status: "confirmed" }, { status: "pending" }, { status: "confirmed" }, {}];
+    assert.deepEqual(coverflex.countStatuses(movements), {
+      confirmed: 2,
+      pending: 1,
+      undefined: 1,
+    });
+  });
+});
