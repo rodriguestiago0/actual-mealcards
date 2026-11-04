@@ -59,6 +59,8 @@ jobs:
     needs: detect
     if: needs.detect.outputs.changed == 'true'
     uses: ./.github/workflows/ci.yml
+    with:
+      docker: false
 
   release:
     needs: [detect, ci]

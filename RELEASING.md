@@ -1,9 +1,13 @@
 # Releasing
 
-Dependabot PRs for `@actual-app/api` and patch updates are auto-merged after CI passes; other
-updates need a review. Approving any PR as the repo owner enables auto-merge on it, so it
-squash-merges once CI is green. A push to `main` that changes the image contents (code, `Dockerfile` or
-runtime dependencies) runs CI again and, if it passes, creates a new patch release (`vX.Y.Z` git tag), and the Docker image is published to
+Only Dependabot PRs for `@actual-app/api` are auto-merged: the Dependabot auto-merge workflow
+approves them with `RELEASE_TOKEN` (the owner's token, which satisfies the required review) and
+merges them once CI passes. They are taken on the next daily check, with no cooldown; other
+updates wait 3 days and need a review. Approving any PR as the repo owner enables auto-merge on it,
+so it squash-merges once CI is green. A push to `main` that changes the image contents since the
+last `v*` tag (code, `Dockerfile`, `package.json` or runtime dependencies) runs CI again (without
+the multi-platform image build, which the PR already ran) and, if it passes, creates a new patch
+release (`vX.Y.Z` git tag), and the Docker image is published to
 `rodriguestiago0/actual-mealcards` with the tags `latest`, `X.Y.Z`, `X.Y` and `sha-<commit>`. Republishing an older tag by hand
 (**Docker Image Publish → Run workflow**) leaves `latest` where it is.
 

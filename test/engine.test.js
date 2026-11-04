@@ -101,6 +101,27 @@ describe("deleteByImportedIds", () => {
   });
 });
 
+describe("deleteByImportedIds reconciled", () => {
+  it("keeps reconciled transactions and warns instead", async (t) => {
+    const write = mock.method(process.stderr, "write", () => true);
+    t.after(() => write.mock.restore());
+    const api = fakeApi({
+      transactions: {
+        A: [
+          { id: "t1", date: "2024-02-01", amount: -850, imported_id: "x", reconciled: true },
+          { id: "t2", date: "2024-02-02", amount: -100, imported_id: "y", reconciled: false },
+        ],
+      },
+    });
+    await deleteByImportedIds(api, "A", ["x", "y"], "2024-01-01");
+    assert.deepEqual(callsTo(api, "deleteTransaction"), [["deleteTransaction", "t2"]]);
+    assert.match(
+      write.mock.calls[0].arguments[0],
+      /WARN Not deleting reconciled transaction 2024-02-01 -8\.50 in A/,
+    );
+  });
+});
+
 describe("updateChangedTransactions", () => {
   it("updates changed amounts and dates, but not reconciled or split transactions", async () => {
     const existing = (id, overrides) => ({
@@ -278,7 +299,7 @@ describe("importEdenred", () => {
   it("doesn't open the budget when login fails", async (t) => {
     mockEdenred(t, {}, { loginStatus: 401 });
     const api = fakeApi({ accounts: [{ id: "A" }] });
-    await assert.rejects(importEdenred(config({ card1: "A" }), api), /failed: 401 denied/);
+    await assert.rejects(importEdenred(config({ card1: "A" }), api), /failed: 401$/);
     assert.equal(api.calls.length, 0);
   });
 
@@ -310,19 +331,195 @@ describe("importEdenred", () => {
   });
 });
 
+const runConfig = { notifications, actual: actualConfig };
+// A registry entry whose import runs fn, then reports the given failure once the budget synced.
+const provider = (fn, failure) => ({
+  prepare: async () => "session",
+  importInto: async () => {
+    await fn();
+    return {
+      throwIfAny: () => {
+        if (failure) throw new Error(failure);
+      },
+    };
+  },
+});
+
 describe("runEnabledImports", () => {
   it("runs enabled imports, continuing and notifying after a failure", async (t) => {
     const fetch = mockFetch(t);
     const ran = [];
     const registry = {
-      Broken: { enabled: () => true, run: async () => Promise.reject(new Error("auth failed")) },
-      Disabled: { enabled: () => false, run: async () => ran.push("Disabled") },
-      Working: { enabled: () => true, run: async () => ran.push("Working") },
+      Broken: {
+        enabled: () => true,
+        prepare: async () => Promise.reject(new Error("auth failed")),
+      },
+      Disabled: { enabled: () => false, ...provider(() => ran.push("Disabled")) },
+      Working: { enabled: () => true, ...provider(() => ran.push("Working")) },
     };
 
-    assert.equal(await runEnabledImports({ notifications }, registry), false);
+    assert.equal(await runEnabledImports(runConfig, registry, fakeApi()), false);
     assert.deepEqual(ran, ["Working"]);
     assert.deepEqual(sentTexts(fetch), ["❌ actual-mealcards: Broken import failed\nauth failed"]);
+  });
+});
+
+describe("runEnabledImports recovery", () => {
+  it("notifies once when an import works again after failing", async (t) => {
+    const fetch = mockFetch(t);
+    let fail = true;
+    const registry = {
+      Flaky: {
+        enabled: () => true,
+        ...provider(() => {
+          if (fail) throw new Error("down");
+        }),
+      },
+    };
+    const quiet = mock.method(process.stderr, "write", () => true);
+    t.after(() => quiet.mock.restore());
+
+    assert.equal(await runEnabledImports(runConfig, registry, fakeApi()), false);
+    fail = false;
+    assert.equal(await runEnabledImports(runConfig, registry, fakeApi()), true);
+    assert.equal(await runEnabledImports(runConfig, registry, fakeApi()), true);
+    assert.deepEqual(sentTexts(fetch), [
+      "❌ actual-mealcards: Flaky import failed\ndown",
+      "✅ actual-mealcards: Flaky recovered",
+    ]);
+  });
+});
+
+describe("importCoverflex per pocket", () => {
+  it("imports the other pockets when one fails, then reports every failure", async (t) => {
+    const write = mock.method(process.stderr, "write", () => true);
+    t.after(() => write.mock.restore());
+    const lunch = {
+      id: "m1",
+      executed_at: "2024-01-01T00:00:00Z",
+      status: "confirmed",
+      is_debit: true,
+      amount: { amount: 100 },
+      description: "Shop",
+    };
+    const fetch = mock.method(globalThis, "fetch", async (url) => {
+      if (url.endsWith("/sessions")) return Response.json({ token: "t" });
+      if (url.includes("pocket-1")) return new Response("no", { status: 403 });
+      return Response.json({ movements: { list: [lunch, { ...lunch, id: "m2", amount: {} }] } });
+    });
+    t.after(() => fetch.mock.restore());
+    const api = fakeApi({ accounts: [{ id: "A" }, { id: "B" }] });
+    const config = {
+      actual: actualConfig,
+      coverflex: {
+        userAgentToken: "ua",
+        importFrom: "1970-01-01",
+        accounts: { "pocket-1": "A", "pocket-2": "B" },
+      },
+    };
+
+    await assert.rejects(importCoverflex(config, api), {
+      message:
+        "Coverflex pocket-1: GET /api/employee/movements failed: 403\n" +
+        "Coverflex pocket-2: skipped 1 malformed movement(s)",
+    });
+    assert.deepEqual(
+      callsTo(api, "importTransactions").map(([, account, txs]) => [account, txs.length]),
+      [["B", 1]],
+    );
+    assert.equal(callsTo(api, "sync").length, 1);
+  });
+});
+
+describe("dry run", () => {
+  it("previews imports, skips changes and doesn't sync", async (t) => {
+    // Captures log lines only: the test runner reports through stdout too.
+    const output = [];
+    const original = process.stdout.write.bind(process.stdout);
+    const write = mock.method(process.stdout, "write", (chunk, ...rest) =>
+      /^\d{4}-\d{2}-\d{2}T.* INFO /.test(chunk) ? output.push(chunk) : original(chunk, ...rest),
+    );
+    t.after(() => write.mock.restore());
+    const api = fakeApi({
+      transactions: { A: [{ id: "t1", date: "2024-02-01", imported_id: "x", amount: -1 }] },
+    });
+    await withBudget(
+      { ...actualConfig, dryRun: true },
+      async (dry) => {
+        await importTransactions(dry, "A", [{ imported_id: "y", amount: -100 }]);
+        await updateChangedTransactions(
+          dry,
+          "A",
+          [{ imported_id: "x", date: "2024-02-01", amount: -2 }],
+          "2024-01-01",
+        );
+        await deleteByImportedIds(dry, "A", ["x"], "2024-01-01");
+      },
+      api,
+    );
+
+    const [[, , , opts]] = callsTo(api, "importTransactions");
+    assert.equal(opts.dryRun, true);
+    assert.equal(callsTo(api, "updateTransaction").length, 0);
+    assert.equal(callsTo(api, "deleteTransaction").length, 0);
+    assert.equal(callsTo(api, "sync").length, 0);
+    assert.equal(callsTo(api, "shutdown").length, 1);
+    assert.match(output.join(""), /Would import into A: 1 added/);
+    assert.match(output.join(""), /Would update amount or date of 1 transaction\(s\) in A/);
+    assert.match(output.join(""), /Would delete cancelled transaction 2024-02-01/);
+    assert.match(
+      output.join(""),
+      /Dry run: nothing was saved \(skipped updateTransaction ×1, deleteTransaction ×1\)/,
+    );
+  });
+});
+
+describe("runEnabledImports budget session", () => {
+  it("opens and syncs the budget once for all imports, reporting failures after the sync", async (t) => {
+    const fetch = mockFetch(t);
+    const quiet = mock.method(process.stderr, "write", () => true);
+    t.after(() => quiet.mock.restore());
+    const api = fakeApi();
+    const order = [];
+    api.sync = async () => order.push("sync");
+    const registry = {
+      One: { enabled: () => true, ...provider(() => order.push("One"), "One rejected") },
+      Two: { enabled: () => true, ...provider(() => order.push("Two")) },
+    };
+
+    assert.equal(await runEnabledImports(runConfig, registry, api), false);
+    assert.deepEqual(order, ["One", "Two", "sync"]);
+    assert.equal(callsTo(api, "downloadBudget").length, 1);
+    assert.equal(callsTo(api, "shutdown").length, 1);
+    assert.deepEqual(sentTexts(fetch), ["❌ actual-mealcards: One import failed\nOne rejected"]);
+  });
+
+  it("fails every import when the budget can't be opened", async (t) => {
+    const fetch = mockFetch(t);
+    const quiet = mock.method(process.stderr, "write", () => true);
+    t.after(() => quiet.mock.restore());
+    const api = fakeApi();
+    api.downloadBudget = async () => Promise.reject(new Error("no budget"));
+    const registry = {
+      One: { enabled: () => true, ...provider(() => {}) },
+      Two: { enabled: () => true, ...provider(() => {}) },
+    };
+
+    assert.equal(await runEnabledImports(runConfig, registry, api), false);
+    assert.deepEqual(sentTexts(fetch), [
+      "❌ actual-mealcards: One import failed\nActual Budget error: no budget",
+      "❌ actual-mealcards: Two import failed\nActual Budget error: no budget",
+    ]);
+  });
+});
+
+describe("withBudget shutdown", () => {
+  it("doesn't fail when shutdown fails after the sync", async (t) => {
+    const quiet = mock.method(process.stderr, "write", () => true);
+    t.after(() => quiet.mock.restore());
+    const api = fakeApi();
+    api.shutdown = async () => Promise.reject(new Error("shutdown failed"));
+    assert.equal(await withBudget(actualConfig, async () => "done", api), "done");
   });
 });
 

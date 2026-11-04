@@ -14,12 +14,24 @@ command line or on a schedule, either with Node.js or with Docker (see
    - `ACTUAL_SERVER_URL` and `ACTUAL_SERVER_PASSWORD`
    - `ACTUAL_SYNC_ID`, found in Actual under **Settings → Show advanced settings → Sync ID**
    - `ACTUAL_FILE_PASSWORD`, only if the budget uses end-to-end encryption
+
+   Secrets can also be read from a file (e.g. a Docker secret): set `<NAME>_FILE` to its path
+   instead of `<NAME>`. This works for `ACTUAL_SERVER_PASSWORD`, `ACTUAL_FILE_PASSWORD`,
+   `EDENRED_PIN`, `COVERFLEX_PASSWORD`, `COVERFLEX_USER_AGENT_TOKEN` and `NOTIFICATION_URL`.
+
 4. Set up at least one provider: [My Edenred](#my-edenred) or [Coverflex](#coverflex).
 5. Run one import: `node index.js import-myedenred` or `node index.js import-coverflex`. Import on
    a schedule: `npm start`.
 
-`node index.js -h` lists the commands. The budget is cached in `ACTUAL_DATA_DIR` (default
-`./temp_data_actual`).
+`node index.js -h` lists the commands. The scheduler caches the budget in `ACTUAL_DATA_DIR`
+(default `./temp_data_actual`). An import run from the command line downloads its own copy into a
+temporary directory, removed when it exits, so it can run while the scheduler is running.
+
+Add `--dry-run` (`-n`) to an import command to see what it would do without saving anything, e.g.
+`node index.js import-coverflex --dry-run`. Imports are previewed with Actual's own dry run, other
+changes (updated and deleted transactions) are logged and skipped, and nothing is synced. The
+budget is still opened the way the app opens it, so Actual's schedule service can post due
+"automatically add" schedules, as opening the app would.
 
 ## Account mapping
 
@@ -32,10 +44,11 @@ is in the app's URL when you open the account (`/accounts/<ID>`).
 | `COVERFLEX_ACCOUNT` | `COVERFLEX_ACTUAL_ACCOUNT` |
 
 For more cards, add pairs with a `_1`, `_2`, ... suffix (e.g. `EDENRED_ACCOUNT_1` /
-`EDENRED_ACTUAL_ACCOUNT_1`). Numbering stops at the first incomplete pair.
+`EDENRED_ACTUAL_ACCOUNT_1`). Numbering stops at the first incomplete pair; the importer logs a
+warning naming any later variables it ignores.
 
-To skip older history, set `EDENRED_IMPORT_FROM` / `COVERFLEX_IMPORT_FROM` (`YYYY-MM-DD`). The
-default, `1970-01-01`, imports everything.
+To skip older history, set `EDENRED_IMPORT_FROM` / `COVERFLEX_IMPORT_FROM` (`YYYY-MM-DD`; any
+other format stops the importer at startup). The default, `1970-01-01`, imports everything.
 
 A transaction you delete in Actual stays deleted: later imports don't add it again. Set
 `REIMPORT_DELETED=true` to have imports add deleted transactions back instead.
@@ -75,8 +88,8 @@ which you generate with a command:
 
 ### Get the user agent token
 
-The token lets imports log in without an OTP. Set every variable above, plus the Actual variables
-(and the Edenred ones, if Edenred is enabled); the token itself can still be empty. Then run:
+The token lets imports log in without an OTP. Set `COVERFLEX_USERNAME` and `COVERFLEX_PASSWORD`
+(nothing else is needed for this command), then run:
 
 ```bash
 node index.js get-coverflex-token
@@ -97,18 +110,23 @@ query parameter.
 ### Caveats
 
 - Only confirmed movements are imported as cleared; pending ones are imported as uncleared.
-- Cancelled movements are deleted from Actual automatically.
+- Movements are dated by the day in the local time zone (`TZ`, e.g. `Europe/Lisbon`), not in UTC.
+  Movements imported by earlier versions near midnight move to the local day on the next import.
+- Cancelled movements are deleted from Actual automatically, unless you reconciled them: those are
+  kept, with a warning in the log.
 
 ## Scheduling
 
 `npm start` runs every enabled import on `CRON_EXPRESSION`. The default, `0 0 */4 * * *`, runs
-every 4 hours; the expression takes 6 fields, the first being seconds. Imports never overlap. Set
+every 4 hours; the expression takes 6 fields, the first being seconds. Scheduled imports never
+overlap. Set
 `RUN_ON_START=true` to also import once at startup.
 
 ## Notifications
 
-You get a message when a scheduled import fails (imports run from the command line don't send
-one), and the Coverflex token reminder.
+You get a message when a scheduled import fails, and again on each failed run until it works,
+when you get a "recovered" message. Imports run from the command line send no failure messages;
+the Coverflex token reminder is sent by both.
 
 Set `NOTIFICATION_URL` to one or more space-separated URLs. They use the same format as
 [Watchtower](https://containrrr.dev/watchtower/notifications/) (Shoutrrr), so you can reuse existing
@@ -126,9 +144,12 @@ Watchtower URLs:
 
 Telegram also accepts `channels=` instead of `chats=`, as older Watchtower URLs use it.
 
-URL-encode special characters in credentials (e.g. `@` → `%40`). Email uses implicit TLS on port
-465 and STARTTLS on other ports; set `encryption=None` to disable it. For plain-HTTP servers, add
-`?scheme=http` (ntfy) or `?disabletls=yes` (Gotify).
+URL-encode special characters in credentials (e.g. `@` → `%40`). Email follows Shoutrrr's
+`encryption=` values: `Auto` (default) uses implicit TLS on port 465 and STARTTLS on other ports,
+`ImplicitTLS` and `ExplicitTLS` (STARTTLS) force one or the other, and `None` sends in clear text.
+STARTTLS is required: if the server doesn't offer it, the email fails instead of being sent
+unencrypted. For a relay without TLS, set `encryption=None` (or Shoutrrr's `usestarttls=No`). For
+plain-HTTP servers, add `?scheme=http` (ntfy) or `?disabletls=yes` (Gotify).
 
 ## Logs
 

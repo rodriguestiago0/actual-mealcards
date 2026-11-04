@@ -85,6 +85,43 @@ describe("coverflex.mapTransactions", () => {
   });
 });
 
+describe("coverflex.mapTransactions dates", () => {
+  it("books movements on the local day, keeping bare dates as they are", (t) => {
+    const tz = process.env.TZ;
+    process.env.TZ = "Europe/Lisbon";
+    t.after(() => {
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+    });
+    const movement = (id, executed_at) => ({
+      id,
+      executed_at,
+      amount: { amount: 850 },
+      is_debit: true,
+      status: "confirmed",
+      description: "Lunch",
+    });
+    const { transactions } = coverflex.mapTransactions(
+      [
+        movement("summer", "2024-07-01T23:30:00Z"),
+        movement("winter", "2024-12-01T23:30:00Z"),
+        movement("offset", "2024-07-01T00:30:00+01:00"),
+        movement("bare", "2024-07-01"),
+      ],
+      "1970-01-01",
+    );
+    assert.deepEqual(
+      transactions.map((t) => [t.imported_id, t.date]),
+      [
+        ["summer", "2024-07-02"],
+        ["winter", "2024-12-01"],
+        ["offset", "2024-07-01"],
+        ["bare", "2024-07-01"],
+      ],
+    );
+  });
+});
+
 describe("edenred.mapTransactions duplicates", () => {
   it("keeps identical movements apart, with the first keeping the legacy id", () => {
     const movement = {
@@ -126,6 +163,37 @@ describe("coverflex.getUserAgentToken", () => {
       /no user agent token/,
     );
   });
+
+  it("asks for the OTP after a 4xx, but not after a network error or a 5xx", async (t) => {
+    const quiet = mock.method(process.stderr, "write", () => true);
+    t.after(() => quiet.mock.restore());
+    let first;
+    const fetch = mock.method(globalThis, "fetch", async (url, { body }) => {
+      if (url.endsWith("/trust-user-agent")) return Response.json({ user_agent_token: "uat" });
+      if (JSON.parse(body).otp) return Response.json({ token: "session" });
+      return first();
+    });
+    t.after(() => fetch.mock.restore());
+    let asked = 0;
+    const askOtp = async () => {
+      asked++;
+      return "123456";
+    };
+    const credentials = { username: "u", password: "p" };
+
+    first = () => new Response("otp required", { status: 401 });
+    assert.equal(await coverflex.getUserAgentToken(credentials, askOtp), "uat");
+    assert.equal(asked, 1);
+
+    first = () => new Response("down", { status: 502 });
+    await assert.rejects(
+      coverflex.getUserAgentToken(credentials, askOtp),
+      /Coverflex login failed, so no OTP was sent: POST \/api\/employee\/sessions failed: 502/,
+    );
+    first = () => Promise.reject(new TypeError("fetch failed", { cause: { code: "ENOTFOUND" } }));
+    await assert.rejects(coverflex.getUserAgentToken(credentials, askOtp), /ENOTFOUND/);
+    assert.equal(asked, 1);
+  });
 });
 
 describe("coverflex.countStatuses", () => {
@@ -136,5 +204,88 @@ describe("coverflex.countStatuses", () => {
       pending: 1,
       undefined: 1,
     });
+  });
+});
+
+describe("movements response shape", () => {
+  function mockFetch(t, body) {
+    const fetch = mock.method(globalThis, "fetch", async () => Response.json(body));
+    t.after(() => fetch.mock.restore());
+  }
+
+  it("fails instead of importing nothing when the movements list is missing", async (t) => {
+    mockFetch(t, { data: {} });
+    await assert.rejects(
+      edenred.getTransactions("tok", "card", "1970-01-01"),
+      /Edenred: unexpected movements response/,
+    );
+    mockFetch(t, { movements: { items: [] } });
+    await assert.rejects(
+      coverflex.getTransactions("tok", "pocket", "1970-01-01"),
+      /Coverflex: unexpected movements response/,
+    );
+  });
+
+  it("accepts an empty list", async (t) => {
+    mockFetch(t, { data: { movementList: [] } });
+    assert.deepEqual(await edenred.getTransactions("tok", "card", "1970-01-01"), []);
+  });
+});
+
+describe("malformed movements", () => {
+  it("skips Edenred movements without a date or numeric amount, keeping the rest", () => {
+    const skipped = [];
+    const result = edenred.mapTransactions(
+      [
+        { transactionName: "Cafe", transactionDate: "2024-12-02T09:30:00", amount: -4.35 },
+        { transactionName: "No date", amount: -1 },
+        { transactionName: "Text", transactionDate: "2024-12-02T10:00:00", amount: "-1" },
+        null,
+      ],
+      "1970-01-01",
+      skipped,
+    );
+    assert.deepEqual(
+      result.map((t) => t.payee_name),
+      ["Cafe"],
+    );
+    assert.deepEqual(skipped, [
+      "movement 2: no valid transactionDate",
+      "movement 3: no numeric amount",
+      "movement 4: no valid transactionDate",
+    ]);
+  });
+
+  it("skips Coverflex movements without an id, date or integer amount, keeping the rest", () => {
+    const valid = {
+      id: "m1",
+      executed_at: "2024-12-02T12:00:00Z",
+      amount: { amount: 850 },
+      is_debit: true,
+      status: "confirmed",
+      description: "Lunch",
+    };
+    const skipped = [];
+    const { transactions } = coverflex.mapTransactions(
+      [
+        valid,
+        { ...valid, id: undefined },
+        { ...valid, id: "m3", executed_at: null },
+        { ...valid, id: "m4", amount: { amount: "850" } },
+        { ...valid, id: "m5", amount: { amount: 8.5 } },
+      ],
+      "1970-01-01",
+      skipped,
+    );
+    assert.deepEqual(
+      transactions.map((t) => t.imported_id),
+      ["m1"],
+    );
+    assert.deepEqual(skipped, [
+      "movement 2: no id",
+      "movement 3: m3: no valid executed_at",
+      "movement 4: m4: no integer amount",
+      "movement 5: m5: no integer amount",
+    ]);
   });
 });

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, it, mock } from "node:test";
 import { collectAccountMapping, loadConfig, stringToBoolean } from "../src/config.js";
 
 const base = {
@@ -47,6 +50,33 @@ describe("collectAccountMapping", () => {
     assert.deepEqual(mapping, { a: "A", b: "B" });
   });
 
+  it("warns about pairs it ignores and repeated accounts", (t) => {
+    const write = mock.method(process.stderr, "write", () => true);
+    t.after(() => write.mock.restore());
+    const mapping = collectAccountMapping(
+      {
+        X_ACCOUNT: "a",
+        X_ACTUAL_ACCOUNT: "A",
+        X_ACCOUNT_1: "a",
+        X_ACTUAL_ACCOUNT_1: "B",
+        X_ACCOUNT_2: "c",
+        X_ACTUAL_ACOUNT_2: "typo",
+        X_ACCOUNT_3: "d",
+        X_ACTUAL_ACCOUNT_3: "D",
+        X_ACCOUNT_4: "",
+      },
+      "X",
+    );
+    assert.deepEqual(mapping, { a: "B" });
+    const warnings = write.mock.calls.map((call) => call.arguments[0]);
+    assert.equal(warnings.length, 2);
+    assert.match(warnings[0], /WARN X_ACCOUNT_1 repeats account "a"/);
+    assert.match(
+      warnings[1],
+      /WARN Ignoring X_ACCOUNT_2, X_ACCOUNT_3, X_ACTUAL_ACCOUNT_3: X_ACCOUNT_2 and X_ACTUAL_ACCOUNT_2/,
+    );
+  });
+
   it("requires the base pair", () => {
     assert.throws(() => collectAccountMapping({ X_ACCOUNT: "a" }, "X"), /X_ACTUAL_ACCOUNT/);
   });
@@ -77,6 +107,15 @@ describe("loadConfig", () => {
       "2024-11-23",
     );
     assert.equal(loadConfig(coverflexEnv).coverflex.importFrom, "1970-01-01");
+  });
+
+  it("rejects an IMPORT_FROM that isn't a real YYYY-MM-DD date", () => {
+    for (const value of ["2024-1-5", "2024/01/01", "2024-02-31", "yesterday"]) {
+      assert.throws(
+        () => loadConfig({ ...coverflexEnv, COVERFLEX_IMPORT_FROM: value }),
+        new RegExp(`COVERFLEX_IMPORT_FROM must be a date as YYYY-MM-DD, got "${value}"`),
+      );
+    }
   });
 
   it("applies Edenred defaults", () => {
@@ -117,5 +156,32 @@ describe("loadConfig notifications", () => {
       ["ntfy", "discord"],
     );
     assert.throws(() => loadConfig({ ...coverflexEnv, NOTIFICATION_URL: "x://y" }), /unsupported/);
+  });
+});
+
+describe("secret files", () => {
+  it("reads <SECRET>_FILE without the final newline", (t) => {
+    const dir = mkdtempSync(join(tmpdir(), "actual-mealcards-secret-"));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const file = join(dir, "password");
+    writeFileSync(file, "s3cret \n");
+    const config = loadConfig({
+      ...coverflexEnv,
+      ACTUAL_SERVER_PASSWORD: "",
+      ACTUAL_SERVER_PASSWORD_FILE: file,
+    });
+    assert.equal(config.actual.password, "s3cret ");
+  });
+
+  it("rejects a secret set both ways, or an unreadable file", () => {
+    assert.throws(
+      () => loadConfig({ ...coverflexEnv, ACTUAL_SERVER_PASSWORD_FILE: "/x" }),
+      /Set ACTUAL_SERVER_PASSWORD or ACTUAL_SERVER_PASSWORD_FILE, not both/,
+    );
+    assert.throws(
+      () =>
+        loadConfig({ ...coverflexEnv, COVERFLEX_PASSWORD: "", COVERFLEX_PASSWORD_FILE: "/nope" }),
+      /Can't read COVERFLEX_PASSWORD_FILE: ENOENT/,
+    );
   });
 });
