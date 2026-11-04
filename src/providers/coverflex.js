@@ -22,7 +22,10 @@ async function fetchMovements(token, pocketId) {
       headers: { Authorization: `Bearer ${token}` },
     },
   );
-  return json?.movements?.list ?? [];
+  const list = json?.movements?.list;
+  // An unofficial API: a changed response shape must fail, not import nothing every run.
+  if (!Array.isArray(list)) throw new Error("Coverflex: unexpected movements response");
+  return list;
 }
 
 /** Splits movements into transactions to import and Coverflex ids of cancelled ones. */

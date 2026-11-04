@@ -22,7 +22,10 @@ async function fetchMovements(token, accountId) {
     `${BASE_URL}/protected/card/${accountId}/accountmovement?appVersion=1.0&appType=PORTAL&channel=WEB`,
     { headers: { Authorization: token } },
   );
-  return json?.data?.movementList ?? [];
+  const list = json?.data?.movementList;
+  // An unofficial API: a changed response shape must fail, not import nothing every run.
+  if (!Array.isArray(list)) throw new Error("Edenred: unexpected movements response");
+  return list;
 }
 
 export function mapTransactions(movements, importFrom) {

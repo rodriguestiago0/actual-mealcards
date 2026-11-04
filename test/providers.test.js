@@ -138,3 +138,28 @@ describe("coverflex.countStatuses", () => {
     });
   });
 });
+
+describe("movements response shape", () => {
+  function mockFetch(t, body) {
+    const fetch = mock.method(globalThis, "fetch", async () => Response.json(body));
+    t.after(() => fetch.mock.restore());
+  }
+
+  it("fails instead of importing nothing when the movements list is missing", async (t) => {
+    mockFetch(t, { data: {} });
+    await assert.rejects(
+      edenred.getTransactions("tok", "card", "1970-01-01"),
+      /Edenred: unexpected movements response/,
+    );
+    mockFetch(t, { movements: { items: [] } });
+    await assert.rejects(
+      coverflex.getTransactions("tok", "pocket", "1970-01-01"),
+      /Coverflex: unexpected movements response/,
+    );
+  });
+
+  it("accepts an empty list", async (t) => {
+    mockFetch(t, { data: { movementList: [] } });
+    assert.deepEqual(await edenred.getTransactions("tok", "card", "1970-01-01"), []);
+  });
+});
