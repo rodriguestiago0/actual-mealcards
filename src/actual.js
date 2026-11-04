@@ -67,7 +67,8 @@ export async function withBudget(
     await api.shutdown().catch(() => {});
     throw err;
   }
-  await api.shutdown();
+  // The changes are synced by now, so a failing shutdown doesn't fail the import.
+  await api.shutdown().catch((err) => log.warn("Actual shutdown failed after syncing:", err));
   return result;
 }
 

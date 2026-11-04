@@ -331,17 +331,34 @@ describe("importEdenred", () => {
   });
 });
 
+const runConfig = { notifications, actual: actualConfig };
+// A registry entry whose import runs fn, then reports the given failure once the budget synced.
+const provider = (fn, failure) => ({
+  prepare: async () => "session",
+  importInto: async () => {
+    await fn();
+    return {
+      throwIfAny: () => {
+        if (failure) throw new Error(failure);
+      },
+    };
+  },
+});
+
 describe("runEnabledImports", () => {
   it("runs enabled imports, continuing and notifying after a failure", async (t) => {
     const fetch = mockFetch(t);
     const ran = [];
     const registry = {
-      Broken: { enabled: () => true, run: async () => Promise.reject(new Error("auth failed")) },
-      Disabled: { enabled: () => false, run: async () => ran.push("Disabled") },
-      Working: { enabled: () => true, run: async () => ran.push("Working") },
+      Broken: {
+        enabled: () => true,
+        prepare: async () => Promise.reject(new Error("auth failed")),
+      },
+      Disabled: { enabled: () => false, ...provider(() => ran.push("Disabled")) },
+      Working: { enabled: () => true, ...provider(() => ran.push("Working")) },
     };
 
-    assert.equal(await runEnabledImports({ notifications }, registry), false);
+    assert.equal(await runEnabledImports(runConfig, registry, fakeApi()), false);
     assert.deepEqual(ran, ["Working"]);
     assert.deepEqual(sentTexts(fetch), ["❌ actual-mealcards: Broken import failed\nauth failed"]);
   });
@@ -354,18 +371,18 @@ describe("runEnabledImports recovery", () => {
     const registry = {
       Flaky: {
         enabled: () => true,
-        run: async () => {
+        ...provider(() => {
           if (fail) throw new Error("down");
-        },
+        }),
       },
     };
     const quiet = mock.method(process.stderr, "write", () => true);
     t.after(() => quiet.mock.restore());
 
-    assert.equal(await runEnabledImports({ notifications }, registry), false);
+    assert.equal(await runEnabledImports(runConfig, registry, fakeApi()), false);
     fail = false;
-    assert.equal(await runEnabledImports({ notifications }, registry), true);
-    assert.equal(await runEnabledImports({ notifications }, registry), true);
+    assert.equal(await runEnabledImports(runConfig, registry, fakeApi()), true);
+    assert.equal(await runEnabledImports(runConfig, registry, fakeApi()), true);
     assert.deepEqual(sentTexts(fetch), [
       "❌ actual-mealcards: Flaky import failed\ndown",
       "✅ actual-mealcards: Flaky recovered",
@@ -454,6 +471,55 @@ describe("dry run", () => {
       output.join(""),
       /Dry run: nothing was saved \(skipped updateTransaction ×1, deleteTransaction ×1\)/,
     );
+  });
+});
+
+describe("runEnabledImports budget session", () => {
+  it("opens and syncs the budget once for all imports, reporting failures after the sync", async (t) => {
+    const fetch = mockFetch(t);
+    const quiet = mock.method(process.stderr, "write", () => true);
+    t.after(() => quiet.mock.restore());
+    const api = fakeApi();
+    const order = [];
+    api.sync = async () => order.push("sync");
+    const registry = {
+      One: { enabled: () => true, ...provider(() => order.push("One"), "One rejected") },
+      Two: { enabled: () => true, ...provider(() => order.push("Two")) },
+    };
+
+    assert.equal(await runEnabledImports(runConfig, registry, api), false);
+    assert.deepEqual(order, ["One", "Two", "sync"]);
+    assert.equal(callsTo(api, "downloadBudget").length, 1);
+    assert.equal(callsTo(api, "shutdown").length, 1);
+    assert.deepEqual(sentTexts(fetch), ["❌ actual-mealcards: One import failed\nOne rejected"]);
+  });
+
+  it("fails every import when the budget can't be opened", async (t) => {
+    const fetch = mockFetch(t);
+    const quiet = mock.method(process.stderr, "write", () => true);
+    t.after(() => quiet.mock.restore());
+    const api = fakeApi();
+    api.downloadBudget = async () => Promise.reject(new Error("no budget"));
+    const registry = {
+      One: { enabled: () => true, ...provider(() => {}) },
+      Two: { enabled: () => true, ...provider(() => {}) },
+    };
+
+    assert.equal(await runEnabledImports(runConfig, registry, api), false);
+    assert.deepEqual(sentTexts(fetch), [
+      "❌ actual-mealcards: One import failed\nActual Budget error: no budget",
+      "❌ actual-mealcards: Two import failed\nActual Budget error: no budget",
+    ]);
+  });
+});
+
+describe("withBudget shutdown", () => {
+  it("doesn't fail when shutdown fails after the sync", async (t) => {
+    const quiet = mock.method(process.stderr, "write", () => true);
+    t.after(() => quiet.mock.restore());
+    const api = fakeApi();
+    api.shutdown = async () => Promise.reject(new Error("shutdown failed"));
+    assert.equal(await withBudget(actualConfig, async () => "done", api), "done");
   });
 });
 
