@@ -98,6 +98,8 @@ query parameter.
 ### Caveats
 
 - Only confirmed movements are imported as cleared; pending ones are imported as uncleared.
+- Movements are dated by the day in the local time zone (`TZ`, e.g. `Europe/Lisbon`), not in UTC.
+  Movements imported by earlier versions near midnight move to the local day on the next import.
 - Cancelled movements are deleted from Actual automatically, unless you reconciled them: those are
   kept, with a warning in the log.
 

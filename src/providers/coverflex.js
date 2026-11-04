@@ -1,3 +1,4 @@
+import { formatDate } from "../actual.js";
 import { requestJson } from "../http.js";
 import { log } from "../log.js";
 
@@ -28,11 +29,21 @@ async function fetchMovements(token, pocketId) {
   return list;
 }
 
+/**
+ * The calendar day of an executed_at timestamp in local time (the container's TZ), so a lunch paid
+ * just after midnight isn't booked on the previous (UTC) day. A bare date is taken as is.
+ */
+function localDate(executedAt) {
+  return executedAt.includes("T") ? formatDate(new Date(executedAt)) : executedAt.slice(0, 10);
+}
+
 /** Why a movement can't be imported, or null. Actual rejects a whole batch on a bad amount. */
 function invalidReason(movement) {
   if (typeof movement?.id !== "string" || !movement.id) return "no id";
-  if (!/^\d{4}-\d{2}-\d{2}/.test(movement.executed_at))
+  const { executed_at } = movement;
+  if (!/^\d{4}-\d{2}-\d{2}/.test(executed_at) || Number.isNaN(Date.parse(executed_at))) {
     return `${movement.id}: no valid executed_at`;
+  }
   if (!Number.isInteger(movement.amount?.amount)) return `${movement.id}: no integer amount`;
   return null;
 }
@@ -51,7 +62,7 @@ export function mapTransactions(movements, importFrom, skipped = []) {
       skipped.push(`movement ${index + 1}: ${reason}`);
       continue;
     }
-    const date = movement.executed_at.split("T")[0];
+    const date = localDate(movement.executed_at);
     if (date < importFrom) continue;
 
     if (movement.status === "cancelled") {

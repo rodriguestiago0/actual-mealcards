@@ -85,6 +85,43 @@ describe("coverflex.mapTransactions", () => {
   });
 });
 
+describe("coverflex.mapTransactions dates", () => {
+  it("books movements on the local day, keeping bare dates as they are", (t) => {
+    const tz = process.env.TZ;
+    process.env.TZ = "Europe/Lisbon";
+    t.after(() => {
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+    });
+    const movement = (id, executed_at) => ({
+      id,
+      executed_at,
+      amount: { amount: 850 },
+      is_debit: true,
+      status: "confirmed",
+      description: "Lunch",
+    });
+    const { transactions } = coverflex.mapTransactions(
+      [
+        movement("summer", "2024-07-01T23:30:00Z"),
+        movement("winter", "2024-12-01T23:30:00Z"),
+        movement("offset", "2024-07-01T00:30:00+01:00"),
+        movement("bare", "2024-07-01"),
+      ],
+      "1970-01-01",
+    );
+    assert.deepEqual(
+      transactions.map((t) => [t.imported_id, t.date]),
+      [
+        ["summer", "2024-07-02"],
+        ["winter", "2024-12-01"],
+        ["offset", "2024-07-01"],
+        ["bare", "2024-07-01"],
+      ],
+    );
+  });
+});
+
 describe("edenred.mapTransactions duplicates", () => {
   it("keeps identical movements apart, with the first keeping the legacy id", () => {
     const movement = {

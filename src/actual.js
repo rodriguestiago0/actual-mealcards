@@ -81,8 +81,7 @@ export async function importTransactions(
  */
 export async function updateChangedTransactions(api, accountId, transactions, sinceDate) {
   const incoming = new Map(transactions.map((t) => [t.imported_id, t]));
-  const today = new Date().toISOString().slice(0, 10);
-  const until = transactions.reduce((max, t) => (t.date > max ? t.date : max), today);
+  const until = transactions.reduce((max, t) => (t.date > max ? t.date : max), latestDate());
   const existing = await api.getTransactions(accountId, sinceDate, until);
 
   let updated = 0;
@@ -109,8 +108,7 @@ export async function updateChangedTransactions(api, accountId, transactions, si
  */
 export async function deleteByImportedIds(api, accountId, importedIds, sinceDate) {
   const wanted = new Set(importedIds);
-  const today = new Date().toISOString().slice(0, 10);
-  const existing = await api.getTransactions(accountId, sinceDate, today);
+  const existing = await api.getTransactions(accountId, sinceDate, latestDate());
   const matches = existing.filter((t) => wanted.has(t.imported_id));
   const describe = (t) =>
     [t.date, (t.amount / 100).toFixed(2), t.imported_payee].filter(Boolean).join(" ");
@@ -126,4 +124,18 @@ export async function deleteByImportedIds(api, accountId, importedIds, sinceDate
     await api.deleteTransaction(transaction.id);
     log.info(`Deleted cancelled transaction ${describe(transaction)} from ${accountId}`);
   }
+}
+
+/** YYYY-MM-DD in local time. */
+export function formatDate(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/**
+ * The latest date an imported transaction can have: tomorrow in local time, so transactions that
+ * earlier versions dated by the UTC day, which can be ahead of the local one, are still found.
+ */
+function latestDate() {
+  return formatDate(new Date(Date.now() + 86_400_000));
 }
