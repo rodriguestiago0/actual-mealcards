@@ -73,6 +73,36 @@ export async function importTransactions(
   return errors;
 }
 
+/**
+ * Applies amount and date changes to already-imported transactions, which Actual's import never
+ * updates (e.g. a pending Coverflex movement confirmed at a different amount). Reconciled
+ * transactions are left alone, like the import does, and so are split ones, whose parts would no
+ * longer add up.
+ */
+export async function updateChangedTransactions(api, accountId, transactions, sinceDate) {
+  const incoming = new Map(transactions.map((t) => [t.imported_id, t]));
+  const today = new Date().toISOString().slice(0, 10);
+  const until = transactions.reduce((max, t) => (t.date > max ? t.date : max), today);
+  const existing = await api.getTransactions(accountId, sinceDate, until);
+
+  let updated = 0;
+  for (const transaction of existing) {
+    const wanted = incoming.get(transaction.imported_id);
+    if (!wanted || transaction.reconciled) continue;
+    const changes = {};
+    if (transaction.amount !== wanted.amount) changes.amount = wanted.amount;
+    if (transaction.date !== wanted.date) changes.date = wanted.date;
+    if (Object.keys(changes).length === 0) continue;
+    if (transaction.is_parent) {
+      log.warn(`Not updating split transaction ${transaction.id}: its amount or date changed`);
+      continue;
+    }
+    await api.updateTransaction(transaction.id, changes);
+    updated++;
+  }
+  if (updated > 0) log.info(`Updated amount or date of ${updated} transaction(s) in ${accountId}`);
+}
+
 /** Deletes the Actual transactions whose imported_id is in importedIds. */
 export async function deleteByImportedIds(api, accountId, importedIds, sinceDate) {
   const wanted = new Set(importedIds);

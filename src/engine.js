@@ -2,6 +2,7 @@ import {
   deleteByImportedIds,
   importTransactions,
   requireOpenAccounts,
+  updateChangedTransactions,
   withBudget,
 } from "./actual.js";
 import { log } from "./log.js";
@@ -64,6 +65,12 @@ export async function importCoverflex(config, budgetApi) {
         } else {
           const errors = await importTransactions(api, actualAccount, transactions, config.actual);
           if (errors.length > 0) failedAccounts.push(actualAccount);
+          await updateChangedTransactions(
+            api,
+            actualAccount,
+            transactions,
+            config.coverflex.importFrom,
+          );
         }
         if (cancelledIds.length > 0) {
           await deleteByImportedIds(api, actualAccount, cancelledIds, config.coverflex.importFrom);

@@ -1,4 +1,5 @@
 import { requestJson } from "../http.js";
+import { log } from "../log.js";
 
 const BASE_URL = "https://menhir-api.coverflex.com/api/employee";
 
@@ -51,8 +52,36 @@ export function mapTransactions(movements, importFrom) {
   return { transactions, cancelledIds };
 }
 
+// Statuses the mapping knows; "pending" and "confirmed" are imported, "cancelled" is removed.
+const KNOWN_STATUSES = new Set(["pending", "confirmed", "cancelled"]);
+
+/** Counts movements per status, e.g. { confirmed: 12, pending: 1 }. */
+export function countStatuses(movements) {
+  const counts = {};
+  for (const { status } of movements) {
+    const key = String(status);
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/**
+ * Logs the statuses Coverflex returned (only status names and counts, no movement data) so the
+ * real set can be confirmed from the logs. Unknown statuses are still imported as uncleared.
+ */
+function logStatuses(movements) {
+  const counts = countStatuses(movements);
+  log.info("Coverflex movement statuses:", counts);
+  const unknown = Object.keys(counts).filter((status) => !KNOWN_STATUSES.has(status));
+  if (unknown.length > 0) {
+    log.warn(`Unknown Coverflex status(es) ${unknown.join(", ")}; imported as uncleared`);
+  }
+}
+
 export async function getTransactions(token, pocketId, importFrom) {
-  return mapTransactions(await fetchMovements(token, pocketId), importFrom);
+  const movements = await fetchMovements(token, pocketId);
+  logStatuses(movements);
+  return mapTransactions(movements, importFrom);
 }
 
 /** Expiry date of a user agent token (a JWT), or null when it can't be read. */
