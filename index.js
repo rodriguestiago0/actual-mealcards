@@ -11,7 +11,7 @@ import { getUserAgentToken } from "./src/providers/coverflex.js";
 
 const USAGE = `
   Usage
-    $ mealcards <command>
+    $ node index.js <command>
 
   Commands
     import-myedenred     Sync My Edenred accounts to Actual Budget

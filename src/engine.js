@@ -139,7 +139,7 @@ export async function checkCoverflexTokenExpiry(config, now = new Date()) {
     daysLeft < 0
       ? "Coverflex user agent token has expired"
       : `Coverflex user agent token expires in ${daysLeft} day(s)`;
-  log.warn(`${message}; run \`mealcards get-coverflex-token\` to renew it`);
+  log.warn(`${message}; run \`node index.js get-coverflex-token\` to renew it`);
   await notify(config.notifications, `⚠️ actual-mealcards: ${message}. Run get-coverflex-token.`);
 }
 

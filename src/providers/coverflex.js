@@ -6,7 +6,7 @@ const BASE_URL = "https://menhir-api.coverflex.com/api/employee";
 
 export async function login({ username, password, userAgentToken }) {
   if (!userAgentToken) {
-    throw new Error("Missing COVERFLEX_USER_AGENT_TOKEN; run `mealcards get-coverflex-token`");
+    throw new Error("Missing COVERFLEX_USER_AGENT_TOKEN; run `node index.js get-coverflex-token`");
   }
   const json = await requestJson(`${BASE_URL}/sessions`, {
     method: "POST",
