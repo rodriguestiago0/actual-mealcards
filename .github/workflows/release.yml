@@ -21,38 +21,38 @@ jobs:
       changed: ${{ steps.check.outputs.changed }}
       api-version: ${{ steps.check.outputs.api-version }}
     steps:
+      # Full history and tags, to find the last release.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           fetch-tags: true
 
       # Release when anything that goes into the image changed since the last release: code,
-      # Dockerfile, package.json or runtime dependencies. Comparing against the latest tag (not
-      # the push's previous commit) means changes from a failed or cancelled run still ship.
-      # Dev-only dependency updates don't need a new image.
+      # Dockerfile, package.json or runtime dependencies. Diffing against the last v* tag (not the
+      # previous push) means changes from a cancelled or failed run are picked up by the next one.
+      # Dev-only dependency updates and lockfile metadata (e.g. hasInstallScript) don't count.
       - name: Check whether the image contents changed
         id: check
         run: |
-          base=$(git tag --list 'v*' --sort=-version:refname | head -n1)
           api='.packages["node_modules/@actual-app/api"].version'
-          # Only version/integrity: npm flips fields like hasInstallScript between runs.
-          runtime='.packages | with_entries(select(.key != "" and .value.dev != true) | .value |= {version, integrity})'
+          runtime='.packages | with_entries(select(.key != "" and .value.dev != true) | .value |= {version, resolved, integrity})'
           echo "api-version=$(jq -r "$api" package-lock.json)" >> "$GITHUB_OUTPUT"
 
           changed=false
           if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
             changed=true
-          elif [ -z "$base" ]; then
-            echo "No release tag yet"
+          elif ! base=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null); then
+            echo "No previous release"
             changed=true
           elif ! git diff --quiet "$base" HEAD -- Dockerfile package.json index.js index-cron.js src; then
-            echo "Code, Dockerfile or package.json changed"
+            echo "Code, Dockerfile or package.json changed since $base"
             changed=true
           elif [ "$(git show "$base:package-lock.json" | jq -S "$runtime")" != "$(jq -S "$runtime" package-lock.json)" ]; then
-            echo "Runtime dependencies changed"
+            echo "Runtime dependencies changed since $base"
             changed=true
+          else
+            echo "Nothing in the image changed since $base"
           fi
-          echo "Compared against ${base:-nothing}: changed=$changed"
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
 
   ci:
