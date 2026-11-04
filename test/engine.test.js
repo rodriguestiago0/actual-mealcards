@@ -367,6 +367,32 @@ describe("runEnabledImports", () => {
   });
 });
 
+describe("runEnabledImports recovery", () => {
+  it("notifies once when an import works again after failing", async (t) => {
+    const fetch = mockFetch(t);
+    let fail = true;
+    const registry = {
+      Flaky: {
+        enabled: () => true,
+        run: async () => {
+          if (fail) throw new Error("down");
+        },
+      },
+    };
+    const quiet = mock.method(process.stderr, "write", () => true);
+    t.after(() => quiet.mock.restore());
+
+    assert.equal(await runEnabledImports({ notifications }, registry), false);
+    fail = false;
+    assert.equal(await runEnabledImports({ notifications }, registry), true);
+    assert.equal(await runEnabledImports({ notifications }, registry), true);
+    assert.deepEqual(sentTexts(fetch), [
+      "❌ actual-mealcards: Flaky import failed\ndown",
+      "✅ actual-mealcards: Flaky recovered",
+    ]);
+  });
+});
+
 describe("checkCoverflexTokenExpiry", () => {
   const now = new Date("2027-10-10T12:00:00Z");
   const configExpiring = (date) => ({

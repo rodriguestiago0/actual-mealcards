@@ -175,7 +175,10 @@ export function whenIdle() {
   return queue;
 }
 
-/** Runs every enabled import; failures are logged and notified. */
+// Imports whose last run failed, so the next successful run can be reported as a recovery.
+const failing = new Set();
+
+/** Runs every enabled import; failures and recoveries are logged and notified. */
 export function runEnabledImports(config, registry = imports) {
   return runExclusive(async () => {
     let ok = true;
@@ -184,8 +187,13 @@ export function runEnabledImports(config, registry = imports) {
       log.info(`Importing ${name}`);
       try {
         await provider.run(config);
+        if (failing.delete(name)) {
+          log.info(`${name} import recovered`);
+          await notify(config.notifications, `✅ actual-mealcards: ${name} recovered`);
+        }
       } catch (err) {
         ok = false;
+        failing.add(name);
         log.error(`${name} import failed:`, err);
         await notify(
           config.notifications,

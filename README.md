@@ -108,8 +108,9 @@ every 4 hours; the expression takes 6 fields, the first being seconds. Imports n
 
 ## Notifications
 
-You get a message when a scheduled import fails (imports run from the command line don't send
-one), and the Coverflex token reminder.
+You get a message when a scheduled import fails, and again on each failed run until it works,
+when you get a "recovered" message. Imports run from the command line send no failure messages;
+the Coverflex token reminder is sent by both.
 
 Set `NOTIFICATION_URL` to one or more space-separated URLs. They use the same format as
 [Watchtower](https://containrrr.dev/watchtower/notifications/) (Shoutrrr), so you can reuse existing
