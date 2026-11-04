@@ -18,8 +18,9 @@ command line or on a schedule, either with Node.js or with Docker (see
 5. Run one import: `node index.js import-myedenred` or `node index.js import-coverflex`. Import on
    a schedule: `npm start`.
 
-`node index.js -h` lists the commands. The budget is cached in `ACTUAL_DATA_DIR` (default
-`./temp_data_actual`).
+`node index.js -h` lists the commands. The scheduler caches the budget in `ACTUAL_DATA_DIR`
+(default `./temp_data_actual`). An import run from the command line downloads its own copy into a
+temporary directory, removed when it exits, so it can run while the scheduler is running.
 
 Add `--dry-run` (`-n`) to an import command to see what it would do without saving anything, e.g.
 `node index.js import-coverflex --dry-run`. Imports are previewed with Actual's own dry run, other
@@ -112,7 +113,8 @@ query parameter.
 ## Scheduling
 
 `npm start` runs every enabled import on `CRON_EXPRESSION`. The default, `0 0 */4 * * *`, runs
-every 4 hours; the expression takes 6 fields, the first being seconds. Imports never overlap. Set
+every 4 hours; the expression takes 6 fields, the first being seconds. Scheduled imports never
+overlap. Set
 `RUN_ON_START=true` to also import once at startup.
 
 ## Notifications

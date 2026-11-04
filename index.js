@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
 import { loadConfig, loadEnvFile } from "./src/config.js";
@@ -33,13 +36,26 @@ function requireProvider(config, name) {
   if (!config[name]) throw new Error(`${name} import is not enabled`);
 }
 
+/**
+ * Points the import at a private copy of the budget, removed when the process exits. The scheduler
+ * may be using ACTUAL_DATA_DIR at the same time, and two Actual API instances must not share it.
+ * Removed on exit, not after the import: the API still writes there after shutdown() resolves.
+ */
+function usePrivateBudgetCopy(config) {
+  const dir = mkdtempSync(join(tmpdir(), "actual-mealcards-"));
+  process.on("exit", () => rmSync(dir, { recursive: true, force: true }));
+  config.actual.dataDir = dir;
+}
+
 const commands = {
   "import-myedenred": async (config) => {
     requireProvider(config, "edenred");
+    usePrivateBudgetCopy(config);
     await imports.Edenred.run(config);
   },
   "import-coverflex": async (config) => {
     requireProvider(config, "coverflex");
+    usePrivateBudgetCopy(config);
     await imports.Coverflex.run(config);
   },
   "get-coverflex-token": async (config) => {
