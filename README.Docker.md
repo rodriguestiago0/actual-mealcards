@@ -72,6 +72,11 @@ docker run -d --name actual-mealcards \
   rodriguestiago0/actual-mealcards:latest
 ```
 
+The budget cache (`ACTUAL_DATA_DIR`, `/usr/src/app/temp_data_actual`) lives inside the container
+and holds a decrypted copy of the budget, even when it uses end-to-end encryption. It survives
+restarts and is downloaded again when the container is recreated. Don't mount it on shared
+storage.
+
 ## Secrets in files
 
 Instead of putting passwords in `environment`, mount them as files and point `<NAME>_FILE` at them,
