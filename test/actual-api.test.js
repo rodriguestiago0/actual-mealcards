@@ -1,7 +1,8 @@
 // Runs the import against the real @actual-app/api on a local budget: no server, no network.
 // Catches the fake API (test/fake-api.js) drifting from what an API update actually does.
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { rmSync } from "node:fs";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it, mock } from "node:test";
@@ -43,6 +44,9 @@ describe("import against the real Actual API", () => {
     // The API logs through console; keep the test output readable.
     for (const method of ["log", "info", "debug"]) mock.method(console, method, () => {});
     dataDir = await mkdtemp(join(tmpdir(), "actual-mealcards-test-"));
+    // The API writes metadata.json without awaiting it (savePrefs from the sync listener), so it
+    // can still be writing after shutdown(). Remove the budget only once the process is done.
+    process.on("exit", () => rmSync(dataDir, { recursive: true, force: true }));
     await mkdir(join(dataDir, syncId));
     const internal = await realApi.init({ dataDir: join(dataDir, syncId) });
     await internal.send("create-budget", { budgetName: "Test", avoidUpload: true });
@@ -53,7 +57,6 @@ describe("import against the real Actual API", () => {
 
   after(async () => {
     await realApi.shutdown().catch(() => {});
-    await rm(dataDir, { recursive: true, force: true });
     mock.restoreAll();
   });
 
