@@ -79,6 +79,15 @@ describe("loadConfig", () => {
     assert.equal(loadConfig(coverflexEnv).coverflex.importFrom, "1970-01-01");
   });
 
+  it("rejects an IMPORT_FROM that isn't a real YYYY-MM-DD date", () => {
+    for (const value of ["2024-1-5", "2024/01/01", "2024-02-31", "yesterday"]) {
+      assert.throws(
+        () => loadConfig({ ...coverflexEnv, COVERFLEX_IMPORT_FROM: value }),
+        new RegExp(`COVERFLEX_IMPORT_FROM must be a date as YYYY-MM-DD, got "${value}"`),
+      );
+    }
+  });
+
   it("applies Edenred defaults", () => {
     const config = loadConfig({
       ...base,

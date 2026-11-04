@@ -34,8 +34,8 @@ is in the app's URL when you open the account (`/accounts/<ID>`).
 For more cards, add pairs with a `_1`, `_2`, ... suffix (e.g. `EDENRED_ACCOUNT_1` /
 `EDENRED_ACTUAL_ACCOUNT_1`). Numbering stops at the first incomplete pair.
 
-To skip older history, set `EDENRED_IMPORT_FROM` / `COVERFLEX_IMPORT_FROM` (`YYYY-MM-DD`). The
-default, `1970-01-01`, imports everything.
+To skip older history, set `EDENRED_IMPORT_FROM` / `COVERFLEX_IMPORT_FROM` (`YYYY-MM-DD`; any
+other format stops the importer at startup). The default, `1970-01-01`, imports everything.
 
 A transaction you delete in Actual stays deleted: later imports don't add it again. Set
 `REIMPORT_DELETED=true` to have imports add deleted transactions back instead.

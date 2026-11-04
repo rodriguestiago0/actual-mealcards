@@ -20,6 +20,20 @@ export function stringToBoolean(value) {
   }
 }
 
+/** The YYYY-MM-DD in env[name], or the default; a malformed date would silently misfilter. */
+function importFrom(env, name) {
+  const value = env[name] || DEFAULT_IMPORT_FROM;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+    Number.isNaN(parsed.getTime()) ||
+    parsed.toISOString().slice(0, 10) !== value
+  ) {
+    throw new Error(`${name} must be a date as YYYY-MM-DD, got "${value}"`);
+  }
+  return value;
+}
+
 function requireEnv(env, names) {
   const missing = names.filter((name) => !env[name]);
   if (missing.length > 0) {
@@ -75,7 +89,7 @@ export function loadConfig(env = process.env) {
       username: env.EDENRED_USERNAME,
       pin: env.EDENRED_PIN,
       version: env.EDENRED_VERSION || "4.1.0",
-      importFrom: env.EDENRED_IMPORT_FROM || DEFAULT_IMPORT_FROM,
+      importFrom: importFrom(env, "EDENRED_IMPORT_FROM"),
       accounts: collectAccountMapping(env, "EDENRED"),
     };
   }
@@ -86,7 +100,7 @@ export function loadConfig(env = process.env) {
       username: env.COVERFLEX_USERNAME,
       password: env.COVERFLEX_PASSWORD,
       userAgentToken: env.COVERFLEX_USER_AGENT_TOKEN || "",
-      importFrom: env.COVERFLEX_IMPORT_FROM || DEFAULT_IMPORT_FROM,
+      importFrom: importFrom(env, "COVERFLEX_IMPORT_FROM"),
       accounts: collectAccountMapping(env, "COVERFLEX"),
     };
   }
