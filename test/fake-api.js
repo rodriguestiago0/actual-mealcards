@@ -29,7 +29,12 @@ export function fakeApi({ transactions = {}, accounts = [] } = {}) {
       updated: [],
     })),
     updateTransaction: record("updateTransaction"),
-    deleteTransaction: record("deleteTransaction"),
+    // Removes the transaction, so getTransactions no longer returns it.
+    deleteTransaction: record("deleteTransaction", (id) => {
+      for (const [accountId, txs] of Object.entries(transactions)) {
+        transactions[accountId] = txs.filter((t) => t.id !== id);
+      }
+    }),
   };
 }
 
