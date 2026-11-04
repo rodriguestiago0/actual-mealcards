@@ -28,6 +28,7 @@ export function fakeApi({ transactions = {}, accounts = [] } = {}) {
       added: txs.map((_, i) => `${accountId}-added-${i}`),
       updated: [],
     })),
+    updateTransaction: record("updateTransaction"),
     deleteTransaction: record("deleteTransaction"),
   };
 }
