@@ -33,6 +33,14 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
 
+      # The commit being built: for a manual republish of an old tag, github.sha is the branch
+      # head the workflow was started from, not the tag's commit.
+      - name: Resolve the checked-out commit
+        id: rev
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "short=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
@@ -52,7 +60,9 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag || github.ref_name }}
             # Not when re-publishing an old tag by hand; a manual run of Release still moves latest.
             type=raw,value=latest,enable=${{ github.event_name != 'workflow_dispatch' || github.workflow == 'Release' }}
-            type=sha
+            type=raw,value=sha-${{ steps.rev.outputs.short }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.rev.outputs.sha }}
 
       - name: Build and push Docker image
         id: push
