@@ -34,12 +34,20 @@ describe("requestJson", () => {
     });
   });
 
-  it("throws with method, path and status, without the query string", async (t) => {
+  it("throws with method, path and status, without the query string or body", async (t) => {
     mockFetch(t, new Response("nope", { status: 401 }));
+    const write = mock.method(process.stderr, "write", () => true);
+    t.after(() => write.mock.restore());
     await assert.rejects(requestJson("https://host/api/v1/account?token=secret"), (err) => {
-      assert.equal(err.message, "GET /api/v1/account failed: 401 nope");
+      assert.equal(err.message, "GET /api/v1/account failed: 401");
+      assert.equal(err.status, 401);
+      assert.equal(err.body, "nope");
       return true;
     });
+    assert.match(
+      write.mock.calls[0].arguments[0],
+      /WARN GET \/api\/v1\/account answered 401: nope/,
+    );
   });
 });
 

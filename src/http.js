@@ -42,8 +42,12 @@ export async function requestJson(
 
     const text = await response.text();
     if (!response.ok) {
-      const error = new Error(`${where} failed: ${response.status} ${text.slice(0, 200)}`);
+      // The body stays in the log: it can echo account details, and the message is notified.
+      const excerpt = text.slice(0, 200);
+      log.warn(`${where} answered ${response.status}: ${excerpt}`);
+      const error = new Error(`${where} failed: ${response.status}`);
       error.status = response.status;
+      error.body = excerpt;
       throw error;
     }
     if (!text) return null;

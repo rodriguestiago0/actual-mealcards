@@ -278,7 +278,7 @@ describe("importEdenred", () => {
   it("doesn't open the budget when login fails", async (t) => {
     mockEdenred(t, {}, { loginStatus: 401 });
     const api = fakeApi({ accounts: [{ id: "A" }] });
-    await assert.rejects(importEdenred(config({ card1: "A" }), api), /failed: 401 denied/);
+    await assert.rejects(importEdenred(config({ card1: "A" }), api), /failed: 401$/);
     assert.equal(api.calls.length, 0);
   });
 

@@ -92,7 +92,7 @@ describe("CLI (index.js)", () => {
   it("exits 1 with the error when the import fails", async () => {
     const { code, stderr } = await run("index.js", ["import-myedenred"], edenredEnv);
     assert.equal(code, 1);
-    assert.match(stderr, /POST \/edenred-customer\/v2\/authenticate\/pin failed: 401 denied/);
+    assert.match(stderr, /POST \/edenred-customer\/v2\/authenticate\/pin failed: 401$/m);
   });
 });
 
