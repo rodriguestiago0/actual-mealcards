@@ -24,7 +24,6 @@ const task = cron.schedule(
   },
   { noOverlap: true },
 );
-log.info(`Scheduled (${config.cronExpression}), next run:`, task.getNextRun()?.toISOString());
 
 // Registered before the first import: as PID 1 in Docker, Node ignores signals it has no handler
 // for. A running import is allowed to finish so its changes are synced.
@@ -36,5 +35,6 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
     process.exit(0);
   });
 }
+log.info(`Scheduled (${config.cronExpression}), next run:`, task.getNextRun()?.toISOString());
 
 if (config.runOnStart) await runEnabledImports(config);
