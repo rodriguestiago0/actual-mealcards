@@ -21,6 +21,12 @@ command line or on a schedule, either with Node.js or with Docker (see
 `node index.js -h` lists the commands. The budget is cached in `ACTUAL_DATA_DIR` (default
 `./temp_data_actual`).
 
+Add `--dry-run` (`-n`) to an import command to see what it would do without saving anything, e.g.
+`node index.js import-coverflex --dry-run`. Imports are previewed with Actual's own dry run, other
+changes (updated and deleted transactions) are logged and skipped, and nothing is synced. The
+budget is still opened the way the app opens it, so Actual's schedule service can post due
+"automatically add" schedules, as opening the app would.
+
 ## Account mapping
 
 Each provider account maps to an Actual account through a pair of variables. The Actual account ID

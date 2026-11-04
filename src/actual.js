@@ -3,9 +3,41 @@ import { join } from "node:path";
 import * as actualApi from "@actual-app/api";
 import { log } from "./log.js";
 
-/** Opens the budget, runs fn(api), then syncs and always shuts down. */
+// API calls that only read, made as usual in a dry run.
+const READS = /^(get|aqlQuery$|runQuery$|q$)/;
+
+/**
+ * The API with every call that would change the budget skipped and counted in `skipped`, except
+ * importTransactions, which runs as Actual's preview so its result can still be logged. Its
+ * `dryRun` is true, so helpers can say what would happen instead of what did.
+ */
+export function dryRunApi(api, skipped) {
+  const wrap = (name, value) => {
+    if (typeof value !== "function" || READS.test(name)) return value;
+    if (name === "importTransactions") {
+      return (accountId, transactions, opts) =>
+        api.importTransactions(accountId, transactions, {
+          defaultCleared: true,
+          ...opts,
+          dryRun: true,
+        });
+    }
+    return async () => {
+      skipped.set(name, (skipped.get(name) ?? 0) + 1);
+    };
+  };
+  return {
+    ...Object.fromEntries(Object.entries(api).map(([name, value]) => [name, wrap(name, value)])),
+    dryRun: true,
+  };
+}
+
+/**
+ * Opens the budget, runs fn(api), then syncs and always shuts down, returning fn's result. In a
+ * dry run, fn gets an API that can't change the budget, and nothing is synced.
+ */
 export async function withBudget(
-  { serverURL, password, filePassword, syncId, dataDir },
+  { serverURL, password, filePassword, syncId, dataDir, dryRun = false },
   fn,
   api = actualApi,
 ) {
@@ -20,14 +52,23 @@ export async function withBudget(
     throw new Error(`Actual Budget error: ${err.message}`, { cause: err });
   }
 
+  const skipped = new Map();
+  let result;
   try {
-    await fn(api);
-    await api.sync();
+    if (dryRun) {
+      result = await fn(dryRunApi(api, skipped));
+      const calls = [...skipped].map(([name, count]) => `${name} ×${count}`).join(", ");
+      log.info(`Dry run: nothing was saved${calls ? ` (skipped ${calls})` : ""}`);
+    } else {
+      result = await fn(api);
+      await api.sync();
+    }
   } catch (err) {
     await api.shutdown().catch(() => {});
     throw err;
   }
   await api.shutdown();
+  return result;
 }
 
 /**
@@ -66,7 +107,8 @@ export async function importTransactions(
     payeeNameNormalization: "title-case",
   });
   log.info(
-    `Imported into ${accountId}: ${result.added.length} added, ${result.updated.length} updated`,
+    `${api.dryRun ? "Would import" : "Imported"} into ${accountId}: ` +
+      `${result.added.length} added, ${result.updated.length} updated`,
   );
   const errors = result.errors ?? [];
   if (errors.length > 0) log.error("Actual import errors:", errors);
@@ -99,7 +141,10 @@ export async function updateChangedTransactions(api, accountId, transactions, si
     await api.updateTransaction(transaction.id, changes);
     updated++;
   }
-  if (updated > 0) log.info(`Updated amount or date of ${updated} transaction(s) in ${accountId}`);
+  if (updated > 0) {
+    const verb = api.dryRun ? "Would update" : "Updated";
+    log.info(`${verb} amount or date of ${updated} transaction(s) in ${accountId}`);
+  }
 }
 
 /**
@@ -122,7 +167,8 @@ export async function deleteByImportedIds(api, accountId, importedIds, sinceDate
       continue;
     }
     await api.deleteTransaction(transaction.id);
-    log.info(`Deleted cancelled transaction ${describe(transaction)} from ${accountId}`);
+    const verb = api.dryRun ? "Would delete" : "Deleted";
+    log.info(`${verb} cancelled transaction ${describe(transaction)} from ${accountId}`);
   }
 }
 

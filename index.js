@@ -16,6 +16,7 @@ const USAGE = `
     get-coverflex-token  Log in to Coverflex with an OTP and print the user agent token
 
   Options
+    -n, --dry-run        Import without saving any change to the budget
     -h, --help           Show this help
 `;
 
@@ -50,7 +51,10 @@ const commands = {
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
-  options: { help: { type: "boolean", short: "h" } },
+  options: {
+    help: { type: "boolean", short: "h" },
+    "dry-run": { type: "boolean", short: "n" },
+  },
 });
 const [command] = positionals;
 
@@ -66,7 +70,9 @@ if (!commands[command]) {
 try {
   loadEnvFile();
   silenceLibraryLogs();
-  await commands[command](loadConfig());
+  const config = loadConfig();
+  config.actual.dryRun = values["dry-run"] ?? false;
+  await commands[command](config);
 } catch (err) {
   console.error(err.message);
   process.exitCode = 1;
