@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { log } from "./log.js";
 import { parseNotificationUrls } from "./notify.js";
 
@@ -33,6 +34,32 @@ function importFrom(env, name) {
     throw new Error(`${name} must be a date as YYYY-MM-DD, got "${value}"`);
   }
   return value;
+}
+
+// Secrets that can also be read from a file named by <NAME>_FILE (e.g. a Docker secret).
+const SECRETS = [
+  "ACTUAL_SERVER_PASSWORD",
+  "ACTUAL_FILE_PASSWORD",
+  "EDENRED_PIN",
+  "COVERFLEX_PASSWORD",
+  "COVERFLEX_USER_AGENT_TOKEN",
+  "NOTIFICATION_URL",
+];
+
+/** env with each <SECRET>_FILE read into <SECRET>, without the file's final newline. */
+export function readSecretFiles(env) {
+  const result = { ...env };
+  for (const name of SECRETS) {
+    const file = env[`${name}_FILE`];
+    if (!file) continue;
+    if (env[name]) throw new Error(`Set ${name} or ${name}_FILE, not both`);
+    try {
+      result[name] = readFileSync(file, "utf8").replace(/\r?\n$/, "");
+    } catch (err) {
+      throw new Error(`Can't read ${name}_FILE: ${err.message}`, { cause: err });
+    }
+  }
+  return result;
 }
 
 function requireEnv(env, names) {
@@ -75,7 +102,8 @@ export function collectAccountMapping(env, prefix) {
   return mapping;
 }
 
-export function loadConfig(env = process.env) {
+export function loadConfig(processEnv = process.env) {
+  const env = readSecretFiles(processEnv);
   const enableEdenred = stringToBoolean(env.ENABLE_EDENRED);
   const enableCoverflex = stringToBoolean(env.ENABLE_COVERFLEX);
   if (!enableEdenred && !enableCoverflex) {
@@ -126,7 +154,8 @@ export function loadConfig(env = process.env) {
 }
 
 /** The Coverflex credentials alone, for get-coverflex-token, which doesn't touch Actual. */
-export function loadCoverflexCredentials(env = process.env) {
+export function loadCoverflexCredentials(processEnv = process.env) {
+  const env = readSecretFiles(processEnv);
   requireEnv(env, ["COVERFLEX_USERNAME", "COVERFLEX_PASSWORD"]);
   return { username: env.COVERFLEX_USERNAME, password: env.COVERFLEX_PASSWORD };
 }

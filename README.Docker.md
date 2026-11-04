@@ -72,6 +72,25 @@ docker run -d --name actual-mealcards \
   rodriguestiago0/actual-mealcards:latest
 ```
 
+## Secrets in files
+
+Instead of putting passwords in `environment`, mount them as files and point `<NAME>_FILE` at them,
+e.g. with Compose secrets:
+
+```yaml
+services:
+  actual-mealcards:
+    environment:
+      - ACTUAL_SERVER_PASSWORD_FILE=/run/secrets/actual_password
+    secrets:
+      - actual_password
+secrets:
+  actual_password:
+    file: ./actual_password.txt
+```
+
+See [README.md](README.md#quick-start) for the variables that support this.
+
 ## Coverflex token
 
 Start the container with `COVERFLEX_USER_AGENT_TOKEN` empty, then generate the token inside it:

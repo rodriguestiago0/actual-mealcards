@@ -14,6 +14,11 @@ command line or on a schedule, either with Node.js or with Docker (see
    - `ACTUAL_SERVER_URL` and `ACTUAL_SERVER_PASSWORD`
    - `ACTUAL_SYNC_ID`, found in Actual under **Settings → Show advanced settings → Sync ID**
    - `ACTUAL_FILE_PASSWORD`, only if the budget uses end-to-end encryption
+
+   Secrets can also be read from a file (e.g. a Docker secret): set `<NAME>_FILE` to its path
+   instead of `<NAME>`. This works for `ACTUAL_SERVER_PASSWORD`, `ACTUAL_FILE_PASSWORD`,
+   `EDENRED_PIN`, `COVERFLEX_PASSWORD`, `COVERFLEX_USER_AGENT_TOKEN` and `NOTIFICATION_URL`.
+
 4. Set up at least one provider: [My Edenred](#my-edenred) or [Coverflex](#coverflex).
 5. Run one import: `node index.js import-myedenred` or `node index.js import-coverflex`. Import on
    a schedule: `npm start`.

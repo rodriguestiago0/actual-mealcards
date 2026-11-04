@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it, mock } from "node:test";
 import { collectAccountMapping, loadConfig, stringToBoolean } from "../src/config.js";
 
@@ -153,5 +156,32 @@ describe("loadConfig notifications", () => {
       ["ntfy", "discord"],
     );
     assert.throws(() => loadConfig({ ...coverflexEnv, NOTIFICATION_URL: "x://y" }), /unsupported/);
+  });
+});
+
+describe("secret files", () => {
+  it("reads <SECRET>_FILE without the final newline", (t) => {
+    const dir = mkdtempSync(join(tmpdir(), "actual-mealcards-secret-"));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const file = join(dir, "password");
+    writeFileSync(file, "s3cret \n");
+    const config = loadConfig({
+      ...coverflexEnv,
+      ACTUAL_SERVER_PASSWORD: "",
+      ACTUAL_SERVER_PASSWORD_FILE: file,
+    });
+    assert.equal(config.actual.password, "s3cret ");
+  });
+
+  it("rejects a secret set both ways, or an unreadable file", () => {
+    assert.throws(
+      () => loadConfig({ ...coverflexEnv, ACTUAL_SERVER_PASSWORD_FILE: "/x" }),
+      /Set ACTUAL_SERVER_PASSWORD or ACTUAL_SERVER_PASSWORD_FILE, not both/,
+    );
+    assert.throws(
+      () =>
+        loadConfig({ ...coverflexEnv, COVERFLEX_PASSWORD: "", COVERFLEX_PASSWORD_FILE: "/nope" }),
+      /Can't read COVERFLEX_PASSWORD_FILE: ENOENT/,
+    );
   });
 });
