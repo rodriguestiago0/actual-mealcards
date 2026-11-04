@@ -99,6 +99,17 @@ describe("deleteByImportedIds", () => {
     await deleteByImportedIds(api, "A", ["cancelled"], "2024-01-01");
     assert.deepEqual(callsTo(api, "deleteTransaction"), [["deleteTransaction", "t2"]]);
   });
+
+  it("fails if a deleted transaction doesn't disappear", async () => {
+    const api = fakeApi({
+      transactions: { A: [{ id: "t1", date: "2024-02-01", imported_id: "cancelled" }] },
+    });
+    api.deleteTransaction = async () => {};
+    await assert.rejects(
+      deleteByImportedIds(api, "A", ["cancelled"], "2024-01-01", { timeoutMs: 50 }),
+      /transaction t1 was not deleted after 50ms/,
+    );
+  });
 });
 
 describe("deleteByImportedIds reconciled", () => {

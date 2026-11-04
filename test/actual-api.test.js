@@ -12,16 +12,6 @@ import { importEdenred } from "../src/engine.js";
 
 const syncId = "local-budget";
 
-// The API's deleteTransaction resolves before the delete is applied (api/transaction-delete
-// doesn't await transactions-batch-update), so wait for it to show.
-async function waitUntilDeleted(accountId, date) {
-  for (let i = 0; i < 100; i++) {
-    if ((await realApi.getTransactions(accountId, date, date)).length === 0) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  assert.fail(`transactions on ${date} were not deleted`);
-}
-
 describe("import against the real Actual API", () => {
   let dataDir;
   let budgetId;
@@ -146,7 +136,8 @@ describe("import against the real Actual API", () => {
       assert.equal(api.deleteTransaction.mock.callCount(), 0);
       await deleteByImportedIds(api, accountId, ["shape-1"], "2024-06-01");
       assert.equal(api.deleteTransaction.mock.callCount(), 1);
-      await waitUntilDeleted(accountId, "2024-06-01");
+      // deleteTransaction resolves before the delete is applied; deleteByImportedIds waits for it.
+      assert.deepEqual(await realApi.getTransactions(accountId, "2024-06-01", "2024-06-01"), []);
 
       // A deleted transaction stays deleted unless reimportDeleted is set (the API's default is to
       // reimport it, hence the explicit option in importTransactions).
@@ -156,6 +147,35 @@ describe("import against the real Actual API", () => {
         reimportDeleted: true,
       });
       assert.equal(reimported.added.length, 1);
+    } finally {
+      await realApi.shutdown();
+    }
+  });
+
+  it("has applied every delete when deleteByImportedIds returns, and they persist", async () => {
+    const date = "2024-07-01";
+    await openBudget();
+    try {
+      const transactions = [1, 2, 3].map((i) => ({
+        date,
+        amount: -100 * i,
+        imported_id: `cancel-${i}`,
+        payee_name: "Shop",
+      }));
+      assert.deepEqual(await importTransactions(realApi, accountId, transactions), []);
+      await deleteByImportedIds(
+        realApi,
+        accountId,
+        transactions.map((t) => t.imported_id),
+        date,
+      );
+      assert.deepEqual(await realApi.getTransactions(accountId, date, date), []);
+    } finally {
+      await realApi.shutdown();
+    }
+    await openBudget();
+    try {
+      assert.deepEqual(await realApi.getTransactions(accountId, date, date), []);
     } finally {
       await realApi.shutdown();
     }

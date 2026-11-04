@@ -149,10 +149,20 @@ export async function updateChangedTransactions(api, accountId, transactions, si
 }
 
 /**
+/**
  * Deletes the Actual transactions whose imported_id is in importedIds, except reconciled ones:
- * deleting those would change a reconciled balance, so they are only reported.
+ * deleting those would change a reconciled balance, so they are only reported. The API's
+ * deleteTransaction resolves before the delete is applied (api/transaction-delete doesn't await
+ * the batch update), so each delete is waited for: otherwise sync() runs without it and only a
+ * fixed sleep in shutdown() keeps it from being lost.
  */
-export async function deleteByImportedIds(api, accountId, importedIds, sinceDate) {
+export async function deleteByImportedIds(
+  api,
+  accountId,
+  importedIds,
+  sinceDate,
+  { timeoutMs = 5000 } = {},
+) {
   const wanted = new Set(importedIds);
   const existing = await api.getTransactions(accountId, sinceDate, latestDate());
   const matches = existing.filter((t) => wanted.has(t.imported_id));
@@ -168,6 +178,8 @@ export async function deleteByImportedIds(api, accountId, importedIds, sinceDate
       continue;
     }
     await api.deleteTransaction(transaction.id);
+    // A dry run skips the delete, so there is nothing to wait for.
+    if (!api.dryRun) await waitUntilDeleted(api, accountId, transaction, timeoutMs);
     const verb = api.dryRun ? "Would delete" : "Deleted";
     log.info(`${verb} cancelled transaction ${describe(transaction)} from ${accountId}`);
   }
@@ -185,4 +197,16 @@ export function formatDate(date = new Date()) {
  */
 function latestDate() {
   return formatDate(new Date(Date.now() + 86_400_000));
+}
+
+async function waitUntilDeleted(api, accountId, { id, date }, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while ((await api.getTransactions(accountId, date, date)).some((t) => t.id === id)) {
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `Actual Budget error: transaction ${id} was not deleted after ${timeoutMs}ms`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
 }
