@@ -1,3 +1,4 @@
+import { log } from "./log.js";
 import { parseNotificationUrls } from "./notify.js";
 
 const DEFAULT_IMPORT_FROM = "1970-01-01";
@@ -43,17 +44,33 @@ function requireEnv(env, names) {
 
 /**
  * Builds { providerAccountId: actualAccountId } from PREFIX_ACCOUNT / PREFIX_ACTUAL_ACCOUNT
- * plus the numbered PREFIX_ACCOUNT_1 / PREFIX_ACTUAL_ACCOUNT_1, _2, ... pairs.
+ * plus the numbered PREFIX_ACCOUNT_1 / PREFIX_ACTUAL_ACCOUNT_1, _2, ... pairs. Numbering stops at
+ * the first incomplete pair, with a warning when that drops variables that are set.
  */
 export function collectAccountMapping(env, prefix) {
   requireEnv(env, [`${prefix}_ACCOUNT`, `${prefix}_ACTUAL_ACCOUNT`]);
   const mapping = { [env[`${prefix}_ACCOUNT`]]: env[`${prefix}_ACTUAL_ACCOUNT`] };
 
-  for (let i = 1; ; i++) {
+  let i = 1;
+  for (; ; i++) {
     const account = env[`${prefix}_ACCOUNT_${i}`];
     const actualAccount = env[`${prefix}_ACTUAL_ACCOUNT_${i}`];
     if (!account || !actualAccount) break;
+    if (Object.hasOwn(mapping, account)) {
+      log.warn(`${prefix}_ACCOUNT_${i} repeats account "${account}"; using the last mapping`);
+    }
     mapping[account] = actualAccount;
+  }
+
+  const pattern = new RegExp(`^${prefix}_(?:ACTUAL_)?ACCOUNT_(\\d+)$`);
+  const ignored = Object.keys(env)
+    .filter((name) => env[name] && Number(pattern.exec(name)?.[1]) >= i)
+    .sort();
+  if (ignored.length > 0) {
+    log.warn(
+      `Ignoring ${ignored.join(", ")}: ${prefix}_ACCOUNT_${i} and ${prefix}_ACTUAL_ACCOUNT_${i} ` +
+        "aren't both set, and numbering stops at the first incomplete pair",
+    );
   }
   return mapping;
 }

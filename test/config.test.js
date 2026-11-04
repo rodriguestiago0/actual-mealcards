@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, mock } from "node:test";
 import { collectAccountMapping, loadConfig, stringToBoolean } from "../src/config.js";
 
 const base = {
@@ -45,6 +45,33 @@ describe("collectAccountMapping", () => {
       "X",
     );
     assert.deepEqual(mapping, { a: "A", b: "B" });
+  });
+
+  it("warns about pairs it ignores and repeated accounts", (t) => {
+    const write = mock.method(process.stderr, "write", () => true);
+    t.after(() => write.mock.restore());
+    const mapping = collectAccountMapping(
+      {
+        X_ACCOUNT: "a",
+        X_ACTUAL_ACCOUNT: "A",
+        X_ACCOUNT_1: "a",
+        X_ACTUAL_ACCOUNT_1: "B",
+        X_ACCOUNT_2: "c",
+        X_ACTUAL_ACOUNT_2: "typo",
+        X_ACCOUNT_3: "d",
+        X_ACTUAL_ACCOUNT_3: "D",
+        X_ACCOUNT_4: "",
+      },
+      "X",
+    );
+    assert.deepEqual(mapping, { a: "B" });
+    const warnings = write.mock.calls.map((call) => call.arguments[0]);
+    assert.equal(warnings.length, 2);
+    assert.match(warnings[0], /WARN X_ACCOUNT_1 repeats account "a"/);
+    assert.match(
+      warnings[1],
+      /WARN Ignoring X_ACCOUNT_2, X_ACCOUNT_3, X_ACTUAL_ACCOUNT_3: X_ACCOUNT_2 and X_ACTUAL_ACCOUNT_2/,
+    );
   });
 
   it("requires the base pair", () => {

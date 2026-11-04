@@ -32,7 +32,8 @@ is in the app's URL when you open the account (`/accounts/<ID>`).
 | `COVERFLEX_ACCOUNT` | `COVERFLEX_ACTUAL_ACCOUNT` |
 
 For more cards, add pairs with a `_1`, `_2`, ... suffix (e.g. `EDENRED_ACCOUNT_1` /
-`EDENRED_ACTUAL_ACCOUNT_1`). Numbering stops at the first incomplete pair.
+`EDENRED_ACTUAL_ACCOUNT_1`). Numbering stops at the first incomplete pair; the importer logs a
+warning naming any later variables it ignores.
 
 To skip older history, set `EDENRED_IMPORT_FROM` / `COVERFLEX_IMPORT_FROM` (`YYYY-MM-DD`; any
 other format stops the importer at startup). The default, `1970-01-01`, imports everything.
