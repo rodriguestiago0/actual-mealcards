@@ -52,6 +52,12 @@ describe("importTransactions", () => {
       ],
     ]);
   });
+
+  it("reimports deleted transactions when asked to", async () => {
+    const api = fakeApi();
+    await importTransactions(api, "A", [], { reimportDeleted: true });
+    assert.equal(callsTo(api, "importTransactions")[0][3].reimportDeleted, true);
+  });
 });
 
 describe("deleteByImportedIds", () => {
