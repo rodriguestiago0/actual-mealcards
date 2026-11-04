@@ -6,7 +6,12 @@ import {
   updateChangedTransactions,
   withBudget,
 } from "../src/actual.js";
-import { checkCoverflexTokenExpiry, importCoverflex, runEnabledImports } from "../src/engine.js";
+import {
+  checkCoverflexTokenExpiry,
+  importCoverflex,
+  importEdenred,
+  runEnabledImports,
+} from "../src/engine.js";
 import { parseNotificationUrls } from "../src/notify.js";
 import { callsTo, fakeApi } from "./fake-api.js";
 
@@ -43,6 +48,22 @@ describe("withBudget", () => {
   });
 });
 
+describe("withBudget success path", () => {
+  it("syncs and shuts down once, passing the file password only when set", async () => {
+    const plain = fakeApi();
+    await withBudget(actualConfig, async () => {}, plain);
+    assert.deepEqual(callsTo(plain, "downloadBudget"), [["downloadBudget", "s", {}]]);
+    assert.equal(callsTo(plain, "sync").length, 1);
+    assert.equal(callsTo(plain, "shutdown").length, 1);
+
+    const encrypted = fakeApi();
+    await withBudget({ ...actualConfig, filePassword: "secret" }, async () => {}, encrypted);
+    assert.deepEqual(callsTo(encrypted, "downloadBudget"), [
+      ["downloadBudget", "s", { password: "secret" }],
+    ]);
+  });
+});
+
 describe("importTransactions", () => {
   it("doesn't reimport deleted transactions and pins title-case payee names", async () => {
     const api = fakeApi();
@@ -70,8 +91,8 @@ describe("deleteByImportedIds", () => {
     const api = fakeApi({
       transactions: {
         A: [
-          { id: "t1", imported_id: "keep" },
-          { id: "t2", imported_id: "cancelled" },
+          { id: "t1", date: "2024-02-01", imported_id: "keep" },
+          { id: "t2", date: "2024-02-01", imported_id: "cancelled" },
         ],
       },
     });
@@ -198,6 +219,93 @@ describe("importCoverflex", () => {
     };
 
     await assert.rejects(importCoverflex(config, api), /import errors for account\(s\): A/);
+    assert.equal(callsTo(api, "sync").length, 1);
+  });
+});
+
+describe("importEdenred", () => {
+  const movement = (name) => ({
+    transactionName: name,
+    transactionDate: "2024-12-02T09:30:00",
+    amount: -4.35,
+  });
+  const config = (accounts) => ({
+    actual: actualConfig,
+    edenred: { username: "u", pin: "1234", version: "4.1.0", importFrom: "1970-01-01", accounts },
+  });
+
+  function mockEdenred(t, movementsByCard, { loginStatus = 200 } = {}) {
+    const fetch = mock.method(globalThis, "fetch", async (url) => {
+      if (url.includes("/authenticate/pin")) {
+        return loginStatus === 200
+          ? Response.json({ data: { token: "tok" } })
+          : new Response("denied", { status: loginStatus });
+      }
+      const card = url.match(/\/card\/([^/]+)\/accountmovement/)[1];
+      return Response.json({ data: { movementList: movementsByCard[card] ?? [] } });
+    });
+    t.after(() => fetch.mock.restore());
+    return fetch;
+  }
+
+  it("logs in once and imports each card into its Actual account", async (t) => {
+    const fetch = mockEdenred(t, { card1: [movement("Cafe")], card3: [movement("Lunch")] });
+    const api = fakeApi({ accounts: [{ id: "A" }, { id: "B" }, { id: "C" }] });
+
+    await importEdenred(config({ card1: "A", card2: "B", card3: "C" }), api);
+
+    const urls = fetch.mock.calls.map((call) => call.arguments[0]);
+    assert.equal(urls.filter((url) => url.includes("/authenticate/pin")).length, 1);
+    assert.equal(urls.filter((url) => url.includes("/accountmovement")).length, 3);
+    const movementCalls = fetch.mock.calls.filter((call) =>
+      call.arguments[0].includes("/accountmovement"),
+    );
+    for (const call of movementCalls) {
+      assert.equal(call.arguments[1].headers.Authorization, "tok");
+    }
+    // card2 has no movements, so nothing is imported into B.
+    assert.deepEqual(
+      callsTo(api, "importTransactions").map(([, account, txs]) => [account, txs[0].payee_name]),
+      [
+        ["A", "Cafe"],
+        ["C", "Lunch"],
+      ],
+    );
+    assert.equal(callsTo(api, "sync").length, 1);
+    assert.equal(callsTo(api, "shutdown").length, 1);
+  });
+
+  it("doesn't open the budget when login fails", async (t) => {
+    mockEdenred(t, {}, { loginStatus: 401 });
+    const api = fakeApi({ accounts: [{ id: "A" }] });
+    await assert.rejects(importEdenred(config({ card1: "A" }), api), /failed: 401 denied/);
+    assert.equal(api.calls.length, 0);
+  });
+
+  it("fails before importing when an Actual account isn't open", async (t) => {
+    mockEdenred(t, { card1: [movement("Cafe")] });
+    const api = fakeApi({ accounts: [{ id: "A", closed: true }] });
+    await assert.rejects(
+      importEdenred(config({ card1: "A" }), api),
+      /Edenred: not an open account in this budget: "A" \(for card1\)/,
+    );
+    assert.equal(callsTo(api, "importTransactions").length, 0);
+    assert.equal(callsTo(api, "shutdown").length, 1);
+  });
+
+  it("imports the other cards, syncs, then fails when Actual rejects part of an import", async (t) => {
+    mockEdenred(t, { card1: [movement("Cafe")], card2: [movement("Lunch")] });
+    const api = fakeApi({ accounts: [{ id: "A" }, { id: "B" }] });
+    api.importTransactions = async (account) => ({
+      added: [],
+      updated: [],
+      errors: account === "A" ? [{ message: "bad" }] : [],
+    });
+
+    await assert.rejects(
+      importEdenred(config({ card1: "A", card2: "B" }), api),
+      /import errors for account\(s\): A$/,
+    );
     assert.equal(callsTo(api, "sync").length, 1);
   });
 });
