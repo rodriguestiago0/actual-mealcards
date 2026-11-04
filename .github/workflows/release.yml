@@ -79,6 +79,18 @@ jobs:
           IFS=. read -r major minor patch <<< "${latest#v}"
           echo "tag=v${major:-1}.${minor:-0}.$(( ${patch:-0} + 1 ))" >> "$GITHUB_OUTPUT"
 
+      # GITHUB_TOKEN can't create a tag on a commit whose workflow files differ from main's (it
+      # has no `workflows` permission), and the API answers with a bare 403. That happens when a
+      # workflow change lands on main while CI runs. Say so instead; the next release, or a
+      # manual run of this workflow, ships these changes.
+      - name: Check main's workflows match the release commit
+        run: |
+          git fetch --quiet origin main
+          if ! git diff --quiet "$GITHUB_SHA" FETCH_HEAD -- .github/workflows; then
+            echo "::error::main changed .github/workflows since $GITHUB_SHA, so GITHUB_TOKEN can't tag it. Run the Release workflow manually from main."
+            exit 1
+          fi
+
       - name: Create release
         run: >-
           gh release create "$TAG" --target "$GITHUB_SHA" --generate-notes
