@@ -163,3 +163,61 @@ describe("movements response shape", () => {
     assert.deepEqual(await edenred.getTransactions("tok", "card", "1970-01-01"), []);
   });
 });
+
+describe("malformed movements", () => {
+  it("skips Edenred movements without a date or numeric amount, keeping the rest", () => {
+    const skipped = [];
+    const result = edenred.mapTransactions(
+      [
+        { transactionName: "Cafe", transactionDate: "2024-12-02T09:30:00", amount: -4.35 },
+        { transactionName: "No date", amount: -1 },
+        { transactionName: "Text", transactionDate: "2024-12-02T10:00:00", amount: "-1" },
+        null,
+      ],
+      "1970-01-01",
+      skipped,
+    );
+    assert.deepEqual(
+      result.map((t) => t.payee_name),
+      ["Cafe"],
+    );
+    assert.deepEqual(skipped, [
+      "movement 2: no valid transactionDate",
+      "movement 3: no numeric amount",
+      "movement 4: no valid transactionDate",
+    ]);
+  });
+
+  it("skips Coverflex movements without an id, date or integer amount, keeping the rest", () => {
+    const valid = {
+      id: "m1",
+      executed_at: "2024-12-02T12:00:00Z",
+      amount: { amount: 850 },
+      is_debit: true,
+      status: "confirmed",
+      description: "Lunch",
+    };
+    const skipped = [];
+    const { transactions } = coverflex.mapTransactions(
+      [
+        valid,
+        { ...valid, id: undefined },
+        { ...valid, id: "m3", executed_at: null },
+        { ...valid, id: "m4", amount: { amount: "850" } },
+        { ...valid, id: "m5", amount: { amount: 8.5 } },
+      ],
+      "1970-01-01",
+      skipped,
+    );
+    assert.deepEqual(
+      transactions.map((t) => t.imported_id),
+      ["m1"],
+    );
+    assert.deepEqual(skipped, [
+      "movement 2: no id",
+      "movement 3: m3: no valid executed_at",
+      "movement 4: m4: no integer amount",
+      "movement 5: m5: no integer amount",
+    ]);
+  });
+});

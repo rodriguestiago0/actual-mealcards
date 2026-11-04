@@ -12,74 +12,122 @@ import * as edenred from "./providers/edenred.js";
 
 const TOKEN_EXPIRY_WARNING_DAYS = 30;
 
-/** Throws after the budget synced when Actual rejected part of an import. */
-function failOnImportErrors(failedAccounts) {
-  if (failedAccounts.length > 0) {
-    throw new Error(`Actual reported import errors for account(s): ${failedAccounts.join(", ")}`);
-  }
+/**
+ * Collects per-account problems, so one failing account doesn't stop the others, and throws them
+ * together once the budget has synced.
+ */
+function accountFailures(provider) {
+  const failures = [];
+  // Actual rejects an account's whole batch when one transaction is invalid.
+  const rejected = [];
+  return {
+    async run(account, fn) {
+      try {
+        await fn();
+      } catch (err) {
+        log.error(`${provider} account ${account} failed:`, err);
+        failures.push(`${account}: ${err.message}`);
+      }
+    },
+    skipped(account, descriptions) {
+      if (descriptions.length === 0) return;
+      log.warn(`${provider} account ${account}: skipped malformed movement(s):`, descriptions);
+      failures.push(`${account}: skipped ${descriptions.length} malformed movement(s)`);
+    },
+    rejected(actualAccount) {
+      rejected.push(actualAccount);
+    },
+    throwIfAny() {
+      const lines = failures.map((failure) => `${provider} ${failure}`);
+      if (rejected.length > 0) {
+        lines.push(`Actual reported import errors for account(s): ${rejected.join(", ")}`);
+      }
+      if (lines.length > 0) throw new Error(lines.join("\n"));
+    },
+  };
 }
 
 export async function importEdenred(config, budgetApi) {
   const token = await edenred.login(config.edenred);
-  const failedAccounts = [];
+  const failures = accountFailures("Edenred");
   await withBudget(
     config.actual,
     async (api) => {
       await requireOpenAccounts(api, "Edenred", config.edenred.accounts);
       for (const [edenredAccount, actualAccount] of Object.entries(config.edenred.accounts)) {
-        log.info(`Importing Edenred account ${edenredAccount}`);
-        const transactions = await edenred.getTransactions(
-          token,
-          edenredAccount,
-          config.edenred.importFrom,
-        );
-        if (transactions.length === 0) {
-          log.info("No transactions to import");
-          continue;
-        }
-        const errors = await importTransactions(api, actualAccount, transactions, config.actual);
-        if (errors.length > 0) failedAccounts.push(actualAccount);
+        await failures.run(edenredAccount, async () => {
+          log.info(`Importing Edenred account ${edenredAccount}`);
+          const skipped = [];
+          const transactions = await edenred.getTransactions(
+            token,
+            edenredAccount,
+            config.edenred.importFrom,
+            skipped,
+          );
+          failures.skipped(edenredAccount, skipped);
+          if (transactions.length === 0) {
+            log.info("No transactions to import");
+            return;
+          }
+          const errors = await importTransactions(api, actualAccount, transactions, config.actual);
+          if (errors.length > 0) failures.rejected(actualAccount);
+        });
       }
     },
     budgetApi,
   );
-  failOnImportErrors(failedAccounts);
+  failures.throwIfAny();
 }
 
 export async function importCoverflex(config, budgetApi) {
   const token = await coverflex.login(config.coverflex);
-  const failedAccounts = [];
+  const failures = accountFailures("Coverflex");
   await withBudget(
     config.actual,
     async (api) => {
       await requireOpenAccounts(api, "Coverflex", config.coverflex.accounts);
       for (const [pocketId, actualAccount] of Object.entries(config.coverflex.accounts)) {
-        log.info(`Importing Coverflex pocket ${pocketId}`);
-        const { transactions, cancelledIds } = await coverflex.getTransactions(
-          token,
-          pocketId,
-          config.coverflex.importFrom,
-        );
-        if (transactions.length === 0) {
-          log.info("No transactions to import");
-        } else {
-          const errors = await importTransactions(api, actualAccount, transactions, config.actual);
-          if (errors.length > 0) failedAccounts.push(actualAccount);
-          await updateChangedTransactions(
-            api,
-            actualAccount,
-            transactions,
+        await failures.run(pocketId, async () => {
+          log.info(`Importing Coverflex pocket ${pocketId}`);
+          const skipped = [];
+          const { transactions, cancelledIds } = await coverflex.getTransactions(
+            token,
+            pocketId,
             config.coverflex.importFrom,
+            skipped,
           );
-        }
-        if (cancelledIds.length > 0) {
-          await deleteByImportedIds(api, actualAccount, cancelledIds, config.coverflex.importFrom);
-        }
+          failures.skipped(pocketId, skipped);
+          if (transactions.length === 0) {
+            log.info("No transactions to import");
+          } else {
+            const errors = await importTransactions(
+              api,
+              actualAccount,
+              transactions,
+              config.actual,
+            );
+            if (errors.length > 0) failures.rejected(actualAccount);
+            await updateChangedTransactions(
+              api,
+              actualAccount,
+              transactions,
+              config.coverflex.importFrom,
+            );
+          }
+          if (cancelledIds.length > 0) {
+            await deleteByImportedIds(
+              api,
+              actualAccount,
+              cancelledIds,
+              config.coverflex.importFrom,
+            );
+          }
+        });
       }
     },
     budgetApi,
   );
-  failOnImportErrors(failedAccounts);
+  failures.throwIfAny();
 }
 
 let lastExpiryWarning = null;

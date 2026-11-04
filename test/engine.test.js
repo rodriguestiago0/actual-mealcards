@@ -310,6 +310,47 @@ describe("importEdenred", () => {
   });
 });
 
+describe("importCoverflex per pocket", () => {
+  it("imports the other pockets when one fails, then reports every failure", async (t) => {
+    const write = mock.method(process.stderr, "write", () => true);
+    t.after(() => write.mock.restore());
+    const lunch = {
+      id: "m1",
+      executed_at: "2024-01-01T00:00:00Z",
+      status: "confirmed",
+      is_debit: true,
+      amount: { amount: 100 },
+      description: "Shop",
+    };
+    const fetch = mock.method(globalThis, "fetch", async (url) => {
+      if (url.endsWith("/sessions")) return Response.json({ token: "t" });
+      if (url.includes("pocket-1")) return new Response("no", { status: 403 });
+      return Response.json({ movements: { list: [lunch, { ...lunch, id: "m2", amount: {} }] } });
+    });
+    t.after(() => fetch.mock.restore());
+    const api = fakeApi({ accounts: [{ id: "A" }, { id: "B" }] });
+    const config = {
+      actual: actualConfig,
+      coverflex: {
+        userAgentToken: "ua",
+        importFrom: "1970-01-01",
+        accounts: { "pocket-1": "A", "pocket-2": "B" },
+      },
+    };
+
+    await assert.rejects(importCoverflex(config, api), {
+      message:
+        "Coverflex pocket-1: GET /api/employee/movements failed: 403\n" +
+        "Coverflex pocket-2: skipped 1 malformed movement(s)",
+    });
+    assert.deepEqual(
+      callsTo(api, "importTransactions").map(([, account, txs]) => [account, txs.length]),
+      [["B", 1]],
+    );
+    assert.equal(callsTo(api, "sync").length, 1);
+  });
+});
+
 describe("runEnabledImports", () => {
   it("runs enabled imports, continuing and notifying after a failure", async (t) => {
     const fetch = mockFetch(t);

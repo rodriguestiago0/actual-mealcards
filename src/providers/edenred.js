@@ -28,9 +28,25 @@ async function fetchMovements(token, accountId) {
   return list;
 }
 
-export function mapTransactions(movements, importFrom) {
+/** Why a movement can't be imported, or null. */
+function invalidReason(movement) {
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(movement?.transactionDate)) return "no valid transactionDate";
+  if (!Number.isFinite(movement.amount)) return "no numeric amount";
+  return null;
+}
+
+/**
+ * Maps movements to Actual transactions from importFrom on. Malformed movements are left out and
+ * described in skipped, so one bad movement doesn't block the rest.
+ */
+export function mapTransactions(movements, importFrom, skipped = []) {
   const seen = new Map();
   return movements
+    .filter((movement, index) => {
+      const reason = invalidReason(movement);
+      if (reason) skipped.push(`movement ${index + 1}: ${reason}`);
+      return !reason;
+    })
     .map((movement) => ({ movement, date: movement.transactionDate.split("T")[0] }))
     .filter(({ date }) => date >= importFrom)
     .map(({ movement, date }) => {
@@ -53,6 +69,6 @@ export function mapTransactions(movements, importFrom) {
     });
 }
 
-export async function getTransactions(token, accountId, importFrom) {
-  return mapTransactions(await fetchMovements(token, accountId), importFrom);
+export async function getTransactions(token, accountId, importFrom, skipped) {
+  return mapTransactions(await fetchMovements(token, accountId), importFrom, skipped);
 }

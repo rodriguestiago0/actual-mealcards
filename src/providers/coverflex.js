@@ -28,12 +28,29 @@ async function fetchMovements(token, pocketId) {
   return list;
 }
 
-/** Splits movements into transactions to import and Coverflex ids of cancelled ones. */
-export function mapTransactions(movements, importFrom) {
+/** Why a movement can't be imported, or null. Actual rejects a whole batch on a bad amount. */
+function invalidReason(movement) {
+  if (typeof movement?.id !== "string" || !movement.id) return "no id";
+  if (!/^\d{4}-\d{2}-\d{2}/.test(movement.executed_at))
+    return `${movement.id}: no valid executed_at`;
+  if (!Number.isInteger(movement.amount?.amount)) return `${movement.id}: no integer amount`;
+  return null;
+}
+
+/**
+ * Splits movements into transactions to import and Coverflex ids of cancelled ones. Malformed
+ * movements are left out and described in skipped, so one bad movement doesn't block the rest.
+ */
+export function mapTransactions(movements, importFrom, skipped = []) {
   const transactions = [];
   const cancelledIds = [];
 
-  for (const movement of movements) {
+  for (const [index, movement] of movements.entries()) {
+    const reason = invalidReason(movement);
+    if (reason) {
+      skipped.push(`movement ${index + 1}: ${reason}`);
+      continue;
+    }
     const date = movement.executed_at.split("T")[0];
     if (date < importFrom) continue;
 
@@ -61,8 +78,8 @@ const KNOWN_STATUSES = new Set(["pending", "confirmed", "cancelled"]);
 /** Counts movements per status, e.g. { confirmed: 12, pending: 1 }. */
 export function countStatuses(movements) {
   const counts = {};
-  for (const { status } of movements) {
-    const key = String(status);
+  for (const movement of movements) {
+    const key = String(movement?.status);
     counts[key] = (counts[key] ?? 0) + 1;
   }
   return counts;
@@ -81,10 +98,10 @@ function logStatuses(movements) {
   }
 }
 
-export async function getTransactions(token, pocketId, importFrom) {
+export async function getTransactions(token, pocketId, importFrom, skipped) {
   const movements = await fetchMovements(token, pocketId);
   logStatuses(movements);
-  return mapTransactions(movements, importFrom);
+  return mapTransactions(movements, importFrom, skipped);
 }
 
 /** Expiry date of a user agent token (a JWT), or null when it can't be read. */
