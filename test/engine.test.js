@@ -101,6 +101,27 @@ describe("deleteByImportedIds", () => {
   });
 });
 
+describe("deleteByImportedIds reconciled", () => {
+  it("keeps reconciled transactions and warns instead", async (t) => {
+    const write = mock.method(process.stderr, "write", () => true);
+    t.after(() => write.mock.restore());
+    const api = fakeApi({
+      transactions: {
+        A: [
+          { id: "t1", date: "2024-02-01", amount: -850, imported_id: "x", reconciled: true },
+          { id: "t2", date: "2024-02-02", amount: -100, imported_id: "y", reconciled: false },
+        ],
+      },
+    });
+    await deleteByImportedIds(api, "A", ["x", "y"], "2024-01-01");
+    assert.deepEqual(callsTo(api, "deleteTransaction"), [["deleteTransaction", "t2"]]);
+    assert.match(
+      write.mock.calls[0].arguments[0],
+      /WARN Not deleting reconciled transaction 2024-02-01 -8\.50 in A/,
+    );
+  });
+});
+
 describe("updateChangedTransactions", () => {
   it("updates changed amounts and dates, but not reconciled or split transactions", async () => {
     const existing = (id, overrides) => ({

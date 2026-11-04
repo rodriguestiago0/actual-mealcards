@@ -103,17 +103,27 @@ export async function updateChangedTransactions(api, accountId, transactions, si
   if (updated > 0) log.info(`Updated amount or date of ${updated} transaction(s) in ${accountId}`);
 }
 
-/** Deletes the Actual transactions whose imported_id is in importedIds. */
+/**
+ * Deletes the Actual transactions whose imported_id is in importedIds, except reconciled ones:
+ * deleting those would change a reconciled balance, so they are only reported.
+ */
 export async function deleteByImportedIds(api, accountId, importedIds, sinceDate) {
   const wanted = new Set(importedIds);
   const today = new Date().toISOString().slice(0, 10);
   const existing = await api.getTransactions(accountId, sinceDate, today);
-  const toDelete = existing.filter((t) => wanted.has(t.imported_id));
+  const matches = existing.filter((t) => wanted.has(t.imported_id));
+  const describe = (t) =>
+    [t.date, (t.amount / 100).toFixed(2), t.imported_payee].filter(Boolean).join(" ");
 
-  for (const transaction of toDelete) {
+  for (const transaction of matches) {
+    if (transaction.reconciled) {
+      log.warn(
+        `Not deleting reconciled transaction ${describe(transaction)} in ${accountId}: ` +
+          "it was cancelled; delete it in Actual if you want it gone",
+      );
+      continue;
+    }
     await api.deleteTransaction(transaction.id);
-  }
-  if (toDelete.length > 0) {
-    log.info(`Deleted ${toDelete.length} cancelled transaction(s) from ${accountId}`);
+    log.info(`Deleted cancelled transaction ${describe(transaction)} from ${accountId}`);
   }
 }

@@ -98,7 +98,8 @@ query parameter.
 ### Caveats
 
 - Only confirmed movements are imported as cleared; pending ones are imported as uncleared.
-- Cancelled movements are deleted from Actual automatically.
+- Cancelled movements are deleted from Actual automatically, unless you reconciled them: those are
+  kept, with a warning in the log.
 
 ## Scheduling
 
