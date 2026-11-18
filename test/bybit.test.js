@@ -58,6 +58,12 @@ describe("bybit.parseCsv", () => {
     ]);
   });
 
+  it("ignores a byte order mark", () => {
+    assert.deepEqual(bybit.parseCsv("\uFEFFOrderID,Type\nEXC1,DEPOSIT\n"), [
+      { OrderID: "EXC1", Type: "DEPOSIT" },
+    ]);
+  });
+
   it("returns nothing for an empty file", () => {
     assert.deepEqual(bybit.parseCsv(""), []);
   });
@@ -75,7 +81,7 @@ describe("bybit.exportRanges", () => {
 });
 
 describe("bybit.mapCardRows", () => {
-  it("imports settled purchases and refunds and ignores authorizations", () => {
+  it("imports settled purchases and refunds and ignores authorizations and pending rows", () => {
     const skipped = [];
     const transactions = bybit.mapCardRows(
       [
@@ -97,14 +103,6 @@ describe("bybit.mapCardRows", () => {
         imported_payee: "CAFE, LDA",
         imported_id: "200",
         cleared: true,
-      },
-      {
-        date: "2026-11-17",
-        amount: 199,
-        payee_name: "CAFE, LDA",
-        imported_payee: "CAFE, LDA",
-        imported_id: "201",
-        cleared: false,
       },
     ]);
     assert.deepEqual(skipped, []);
@@ -190,6 +188,17 @@ describe("bybit.mapDepositRows", () => {
     );
     assert.equal(transactions[1].date, transactions[0].date, "falls back to OrderTime");
     assert.deepEqual(skipped, ["deposit SOMETHING X"]);
+  });
+
+  it("leaves deposits in progress for later and reports other currencies", () => {
+    const skipped = [];
+    const transactions = bybit.mapDepositRows(
+      [deposit({ CompletedTime: "0" }), deposit({ OrderID: "USD1", Fiat: "USD" })],
+      "1970-01-01",
+      skipped,
+    );
+    assert.deepEqual(transactions, []);
+    assert.deepEqual(skipped, ["deposit DEPOSIT USD1"]);
   });
 });
 
@@ -327,7 +336,8 @@ describe("importBybit", () => {
       if (url.endsWith("/registertime")) return ok({ registerTime: "1767225600" });
       if (url.endsWith("/batch_create")) {
         const body = JSON.parse(init.body);
-        assert.equal(body.startTime, 1767225600 - 86_400);
+        // A day before the account opened, and 10 more to find authorizations.
+        assert.equal(body.startTime, 1767225600 - 11 * 86_400);
         return ok({ batchId: "b1" });
       }
       if (url.includes("/batch_query")) {
@@ -441,8 +451,37 @@ describe("importBybit", () => {
       bybit: { apiKey: "k", apiSecret: "s", importFrom: "1970-01-01", actualAccount: "A" },
     };
     await importBybit(config, fakeApi({ accounts: [{ id: "A" }] }));
-    const thirtyDaysAgo = (Date.now() - 30 * 86_400_000) / 1000;
-    assert.ok(Math.abs(startTime - thirtyDaysAgo) < 600, `startTime ${startTime}`);
+    // 30 days, and 10 more to find authorizations.
+    const fortyDaysAgo = (Date.now() - 40 * 86_400_000) / 1000;
+    assert.ok(Math.abs(startTime - fortyDaysAgo) < 600, `startTime ${startTime}`);
+  });
+
+  it("fails when the transfer account has no transfer payee", async (t) => {
+    const fetch = mock.method(globalThis, "fetch", async (url) => {
+      const ok = (result) => Response.json({ retCode: 0, retMsg: "OK", result });
+      if (url.endsWith("/registertime")) return ok({ registerTime: "1" });
+      if (url.endsWith("/batch_create")) return ok({ batchId: "b3" });
+      if (url.includes("/query-inter-transfer-list")) return ok({ list: [] });
+      return ok({
+        items: [{ type: "CARD", number: "1", status: 2, url: '{"Basepath":"","Files":[]}' }],
+      });
+    });
+    t.after(() => fetch.mock.restore());
+    const config = {
+      actual: { serverURL: "x", password: "p", syncId: "s", dataDir: "./temp_data_test" },
+      bybit: {
+        apiKey: "k",
+        apiSecret: "s",
+        importFrom: "2026-11-01",
+        actualAccount: "A",
+        transferAccount: "C",
+      },
+    };
+    const api = fakeApi({ accounts: [{ id: "A" }, { id: "C" }] });
+    await assert.rejects(
+      importBybit(config, api),
+      /No transfer payee for BYBIT_TRANSFER_ACCOUNT C/,
+    );
   });
 
   it("fails clearly when Bybit rejects the key", async (t) => {

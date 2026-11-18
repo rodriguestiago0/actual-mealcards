@@ -143,7 +143,7 @@ opened); later ones in the same process only fetch the last 30 days.
 - Card purchases are imported once they settle, usually a day after the payment: authorizations
   have no link to the purchase they become, so importing them would count each payment twice.
 - Amounts are in euros, as charged. Foreign purchases note the original amount and the fee.
-- Pending refunds are imported as uncleared.
+- Pending refunds, deposits and sales are imported once they complete.
 - Card purchases are dated by the day of the payment; deposits and transfers by the day in the
   local time zone (`TZ`).
 

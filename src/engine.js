@@ -110,25 +110,28 @@ async function importCoverflexInto(api, config, token) {
 }
 
 /**
- * Imports the Bybit card and deposit transactions fetched by prepare (the export takes a while, so
- * it runs before the budget is opened) into the one Bybit account.
- */
-/**
  * Makes Bybit's transfers between its own accounts (marked with `counterparty`) transfers to the
  * Actual account that tracks them, when configured; otherwise they stay plain transactions.
  */
 async function asTransfers(api, transactions, transferAccount) {
-  const payee = transferAccount
-    ? (await api.getPayees()).find((p) => p.transfer_acct === transferAccount)?.id
-    : null;
-  return transactions.map(({ counterparty, ...transaction }) => {
-    if (!counterparty || !payee) return transaction;
-    return { ...transaction, payee_name: undefined, payee };
-  });
+  const payee =
+    transferAccount && (await api.getPayees()).find((p) => p.transfer_acct === transferAccount)?.id;
+  // Imported transactions are never updated, so a plain one could never become a transfer.
+  if (transferAccount && !payee) {
+    throw new Error(`No transfer payee for BYBIT_TRANSFER_ACCOUNT ${transferAccount}`);
+  }
+  return transactions.map(({ counterparty, ...transaction }) =>
+    counterparty && payee ? { ...transaction, payee_name: undefined, payee } : transaction,
+  );
 }
 
+/**
+ * Imports the Bybit transactions fetched by prepare (the export takes a while, so it runs before
+ * the budget is opened) into the one Bybit account.
+ */
 async function importBybitInto(api, config, { transactions, skipped, startedAt }) {
   const failures = accountFailures("Bybit");
+  let complete = false;
   const { actualAccount, transferAccount } = config.bybit;
   await requireOpenAccounts(api, "Bybit", {
     "Bybit EU": actualAccount,
@@ -139,7 +142,7 @@ async function importBybitInto(api, config, { transactions, skipped, startedAt }
     transactions = await asTransfers(api, transactions, transferAccount);
     if (transactions.length === 0) {
       log.info("No transactions to import");
-      if (skipped.length === 0 && !api.dryRun) bybitImportedAt = startedAt;
+      complete = skipped.length === 0 && !api.dryRun;
       return;
     }
     const errors = await importTransactions(api, actualAccount, transactions, config.actual);
@@ -149,8 +152,14 @@ async function importBybitInto(api, config, { transactions, skipped, startedAt }
     }
     // No updateChangedTransactions: only settled rows are imported, so amounts don't change, and
     // it would move transactions matched to ones entered by hand to Bybit's dates.
-    if (skipped.length === 0 && !api.dryRun) bybitImportedAt = startedAt;
+    complete = skipped.length === 0 && !api.dryRun;
   });
+  // throwIfAny runs only once the budget has synced, so a failed sync refetches everything.
+  const { throwIfAny } = failures;
+  failures.throwIfAny = () => {
+    throwIfAny();
+    if (complete) bybitImportedAt = startedAt;
+  };
   return failures;
 }
 
@@ -160,7 +169,7 @@ let bybitImportedAt = null;
 
 async function fetchBybit(config) {
   const skipped = [];
-  const since = bybitImportedAt ? bybitImportedAt - BYBIT_REFETCH_DAYS * 86_400_000 : 0;
+  const since = bybitImportedAt ? bybitImportedAt - BYBIT_REFETCH_DAYS * bybit.DAY_MS : 0;
   const startedAt = Date.now();
   const transactions = await bybit.getTransactions(config.bybit, config.bybit.importFrom, skipped, {
     since,

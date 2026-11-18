@@ -16,7 +16,13 @@ const REPORTS = [
 ];
 // The export takes at most 12 months per request.
 const MAX_RANGE_DAYS = 360;
-const DAY_MS = 86_400_000;
+export const DAY_MS = 86_400_000;
+// Bybit EU didn't exist before, so never look further back, even if Bybit can't say when the
+// account was opened.
+const EARLIEST_MS = Date.UTC(2024, 0, 1);
+// Waits before retrying a GET after a network error, a timeout or a 5xx, signed again each time:
+// Bybit rejects a signature older than the receive window.
+const RETRY_DELAYS_MS = [1_000, 5_000];
 const POLL_INTERVAL_MS = 5_000;
 const POLL_TIMEOUT_MS = 10 * 60_000;
 const DOWNLOAD_TIMEOUT_MS = 60_000;
@@ -50,12 +56,27 @@ async function call(credentials, method, path, params = {}) {
   } else {
     payload = JSON.stringify(params);
   }
-  // requestJson serializes the body itself; JSON.stringify is deterministic, so it signs the same.
-  const json = await requestJson(url, {
-    method,
-    headers: signedHeaders(credentials, payload),
-    body: method === "GET" ? undefined : params,
-  });
+  const delays = method === "GET" ? RETRY_DELAYS_MS : [];
+  let json;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      // requestJson serializes the body itself; JSON.stringify is deterministic, so it signs the same.
+      json = await requestJson(
+        url,
+        {
+          method,
+          headers: signedHeaders(credentials, payload),
+          body: method === "GET" ? undefined : params,
+        },
+        { retryDelaysMs: [] },
+      );
+      break;
+    } catch (err) {
+      if (attempt >= delays.length || err.status < 500) throw err;
+      log.warn(`Bybit ${path} failed (${err.message}), retrying`);
+      await sleep(delays[attempt]);
+    }
+  }
   if (json?.retCode !== 0) {
     throw new Error(`Bybit ${path} failed: ${json?.retMsg || "no message"} (${json?.retCode})`);
   }
@@ -121,7 +142,8 @@ async function downloadText(url) {
 }
 
 /** Parses RFC 4180 CSV (quoted fields may hold commas, quotes and newlines) into objects. */
-export function parseCsv(text) {
+export function parseCsv(input) {
+  const text = input.replace(/^\uFEFF/, "");
   const rows = [];
   let row = [];
   let field = "";
@@ -215,15 +237,16 @@ function authorizationDates(rows) {
 }
 
 /**
- * Card rows to import: settled purchases, dated by their authorization when found, and refunds, in
- * the account's currency. Pending refunds are imported as uncleared. Rows that can't be read are described in `skipped`.
+ * Card rows to import: settled purchases, dated by their authorization when found, and settled
+ * refunds, in the account's currency. Rows that can't be read are described in `skipped`.
  */
 export function mapCardRows(rows, importFrom, skipped = []) {
   const authorized = authorizationDates(rows);
   const transactions = [];
   for (const row of rows) {
     const type = row.Type;
-    if (IGNORED_CARD_TYPES.has(type) || row.Status === "FAIL") continue;
+    // Pending rows are left for a later run: the import never updates them once added.
+    if (IGNORED_CARD_TYPES.has(type) || row.Status !== "SUCCESS") continue;
 
     const id = row["Transaction ID"];
     const date = authorized.get(id) ?? row["Transaction Date & Time"]?.slice(0, 10);
@@ -242,7 +265,7 @@ export function mapCardRows(rows, importFrom, skipped = []) {
       payee_name: merchant,
       imported_payee: merchant,
       imported_id: id,
-      cleared: row.Status === "SUCCESS",
+      cleared: true,
     };
     const paid = row["Payment Currency"];
     if (paid && paid !== row.Currency) {
@@ -265,10 +288,12 @@ export function mapDepositRows(rows, importFrom, skipped = []) {
   const transactions = [];
   for (const row of rows) {
     const id = row.OrderID;
+    // Deposits still in progress have no completion time yet; refunds can have none at all.
+    if (row.Type === "DEPOSIT" && !Number(row.CompletedTime)) continue;
     const time = Number(row.CompletedTime) || Number(row.OrderTime);
     const cents = toCents(row.FinalAmount);
     const sign = { DEPOSIT: 1, REFUND: -1 }[row.Type];
-    if (!sign || !id || !time || Number.isNaN(cents)) {
+    if (!sign || !id || !time || row.Fiat !== "EUR" || Number.isNaN(cents)) {
       skipped.push(`deposit ${row.Type ?? "?"} ${id ?? "?"}`);
       continue;
     }
@@ -391,7 +416,9 @@ export function mapExpressRows(rows, importFrom, skipped = []) {
   const transactions = [];
   for (const row of rows) {
     const id = row.OrderID;
-    const time = Number(row.CompletedTime) || Number(row.OrderTime);
+    // Orders still in progress, or that failed, have no completion time.
+    if (!Number(row.CompletedTime)) continue;
+    const time = Number(row.CompletedTime);
     const cents = toCents(row.FinalAmount);
     if (
       row.Side !== "sell" ||
@@ -430,9 +457,10 @@ async function registeredAt(credentials) {
 const isoDay = (seconds) => new Date(seconds * 1000).toISOString().slice(0, 10);
 
 /**
- * Card, fiat deposit, bonus, crypto sale and internal transfer transactions since importFrom, fetched from
- * `since` (ms) when given, and never from before the account was opened, so the default 1970-01-01
- * doesn't request decades of empty exports. Each export takes minutes to prepare, so all of them are requested at once.
+ * Card, fiat deposit, bonus, crypto sale and internal transfer transactions since importFrom,
+ * fetched from `since` (ms) when given, and never from before the account was opened, so the
+ * default 1970-01-01 doesn't request decades of empty exports. Each export takes minutes to
+ * prepare, so all of them are requested at once.
  */
 export async function getTransactions(
   credentials,
@@ -449,13 +477,16 @@ export async function getTransactions(
     Date.parse(`${importFrom}T00:00:00Z`),
     since,
     ((await registeredAt(credentials)) ?? 0) - DAY_MS,
+    EARLIEST_MS,
   );
+  // Exports start earlier so purchases settled from importFrom find their authorization.
+  const exportFrom = from - AUTHORIZATION_MAX_DAYS * DAY_MS;
   // The end is exclusive and rounded down to a UTC day, so end tomorrow to include today.
   const to = Math.floor(now / DAY_MS) * DAY_MS + DAY_MS;
 
   const [transfers, ...exports] = await Promise.all([
     getInternalTransfers(credentials, from, to),
-    ...exportRanges(from, to).map(async (range) => {
+    ...exportRanges(exportFrom, to).map(async (range) => {
       log.info(`Requesting Bybit export ${isoDay(range[0])} to ${isoDay(range[1])}`);
       const files = await exportReports(credentials, range, { pollIntervalMs, pollTimeoutMs });
       return {
@@ -468,8 +499,9 @@ export async function getTransactions(
   ]);
 
   const transactions = [
+    // Deduplicated first, so a row in two exports doesn't use up a second authorization.
     ...mapCardRows(
-      exports.flatMap((e) => e.card),
+      [...new Map(exports.flatMap((e) => e.card).map((r) => [r["Transaction ID"], r])).values()],
       importFrom,
       skipped,
     ),
