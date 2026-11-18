@@ -193,6 +193,38 @@ describe("bybit.mapDepositRows", () => {
   });
 });
 
+describe("bybit.mapBonusRows", () => {
+  it("imports euro bonuses, telling identical ones apart", () => {
+    const time = String(Date.UTC(2026, 6, 29, 12));
+    const skipped = [];
+    const transactions = bybit.mapBonusRows(
+      [
+        { Coin: "EUR", FinalAmount: "2.000000000000000000", CompletedTime: time },
+        { Coin: "EUR", FinalAmount: "2.000000000000000000", CompletedTime: time },
+        { Coin: "EUR", FinalAmount: "0.35", CompletedTime: time },
+        { Coin: "USDC", FinalAmount: "5", CompletedTime: time },
+        { Coin: "EUR", FinalAmount: "x", CompletedTime: time },
+      ],
+      "1970-01-01",
+      skipped,
+    );
+    assert.deepEqual(
+      transactions.map(({ amount, payee_name, imported_id }) => ({
+        amount,
+        payee_name,
+        imported_id,
+      })),
+      [
+        { amount: 200, payee_name: "Bybit bonus", imported_id: `bonus-${time}-200-1` },
+        { amount: 200, payee_name: "Bybit bonus", imported_id: `bonus-${time}-200-2` },
+        { amount: 35, payee_name: "Bybit bonus", imported_id: `bonus-${time}-35-1` },
+      ],
+    );
+    assert.equal(transactions[0].date, "2026-07-29");
+    assert.deepEqual(skipped, [`bonus ${time}`]);
+  });
+});
+
 describe("bybit.mapInternalTransfers", () => {
   const transfer = (overrides) => ({
     transferId: "selfTransfer_1",

@@ -120,7 +120,8 @@ query parameter.
 ## Bybit EU
 
 Imports the Bybit Card's purchases and refunds, and the account's euro deposits (SEPA, Apple Pay,
-MB Way, ...), into one Actual account: every card on the Bybit account goes there.
+MB Way, ...) and campaign bonuses, into one Actual account: every card on the Bybit account goes
+there.
 
 1. On bybit.eu, create a read-only API key with the **Exchange History** permission (system
    generated, HMAC). Keys expire, so note the date and renew it.
