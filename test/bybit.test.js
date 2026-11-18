@@ -225,6 +225,40 @@ describe("bybit.mapBonusRows", () => {
   });
 });
 
+describe("bybit.mapExpressRows", () => {
+  it("imports crypto sold for euros and reports other express orders", () => {
+    const row = (overrides) => ({
+      OrderID: "25336287",
+      Side: "sell",
+      Fiat: "USDC",
+      DepositAmount: "1.170700000000000000",
+      DestinationCoin: "EUR",
+      FinalAmount: "1.000000000000000000",
+      OrderTime: String(Date.UTC(2026, 2, 11, 12)),
+      CompletedTime: String(Date.UTC(2026, 2, 11, 12)),
+      ...overrides,
+    });
+    const skipped = [];
+    const transactions = bybit.mapExpressRows(
+      [row(), row({ OrderID: "2", Side: "buy" })],
+      "1970-01-01",
+      skipped,
+    );
+    assert.deepEqual(transactions, [
+      {
+        date: "2026-03-11",
+        amount: 100,
+        payee_name: "Bybit USDC sale",
+        imported_payee: "Bybit USDC sale",
+        imported_id: "express-25336287",
+        cleared: true,
+        notes: "1.1707 USDC",
+      },
+    ]);
+    assert.deepEqual(skipped, ["express order buy 2"]);
+  });
+});
+
 describe("bybit.mapInternalTransfers", () => {
   const transfer = (overrides) => ({
     transferId: "selfTransfer_1",

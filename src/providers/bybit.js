@@ -12,6 +12,7 @@ const REPORTS = [
   { type: "CARD", number: "1" },
   { type: "DEPOSIT&WITHDRAWAL", number: "3" },
   { type: "BONUS", number: "2" },
+  { type: "DEPOSIT&WITHDRAWAL", number: "4" },
 ];
 // The export takes at most 12 months per request.
 const MAX_RANGE_DAYS = 360;
@@ -382,6 +383,43 @@ export function mapBonusRows(rows, importFrom, skipped = []) {
   return transactions;
 }
 
+/**
+ * Express orders that sold crypto for euros (e.g. 1.17 USDC for 1.00 EUR) as inflows. Other kinds
+ * aren't known yet, so they're described in `skipped` rather than guessed.
+ */
+export function mapExpressRows(rows, importFrom, skipped = []) {
+  const transactions = [];
+  for (const row of rows) {
+    const id = row.OrderID;
+    const time = Number(row.CompletedTime) || Number(row.OrderTime);
+    const cents = toCents(row.FinalAmount);
+    if (
+      row.Side !== "sell" ||
+      row.DestinationCoin !== "EUR" ||
+      !id ||
+      !time ||
+      Number.isNaN(cents)
+    ) {
+      skipped.push(`express order ${row.Side ?? "?"} ${id ?? "?"}`);
+      continue;
+    }
+    const date = formatDate(new Date(time));
+    if (date < importFrom) continue;
+
+    const payee = `Bybit ${row.Fiat} sale`;
+    transactions.push({
+      date,
+      amount: cents,
+      payee_name: payee,
+      imported_payee: payee,
+      imported_id: `express-${id}`,
+      cleared: true,
+      notes: `${Number(row.DepositAmount)} ${row.Fiat}`,
+    });
+  }
+  return transactions;
+}
+
 /** The date the Bybit account was opened, in ms, or null when Bybit doesn't say. */
 async function registeredAt(credentials) {
   const result = await call(credentials, "POST", "/fht/compliance/tax/v3/private/registertime");
@@ -392,7 +430,7 @@ async function registeredAt(credentials) {
 const isoDay = (seconds) => new Date(seconds * 1000).toISOString().slice(0, 10);
 
 /**
- * Card, fiat deposit, bonus and internal transfer transactions since importFrom, fetched from
+ * Card, fiat deposit, bonus, crypto sale and internal transfer transactions since importFrom, fetched from
  * `since` (ms) when given, and never from before the account was opened, so the default 1970-01-01
  * doesn't request decades of empty exports. Each export takes minutes to prepare, so all of them are requested at once.
  */
@@ -424,6 +462,7 @@ export async function getTransactions(
         card: await downloadRows(files["CARD:1"] ?? []),
         deposits: await downloadRows(files["DEPOSIT&WITHDRAWAL:3"] ?? []),
         bonuses: await downloadRows(files["BONUS:2"] ?? []),
+        sales: await downloadRows(files["DEPOSIT&WITHDRAWAL:4"] ?? []),
       };
     }),
   ]);
@@ -441,6 +480,11 @@ export async function getTransactions(
     ),
     // Numbered per export: identical bonuses in one export are distinct, across two the same.
     ...exports.flatMap((e) => mapBonusRows(e.bonuses, importFrom, skipped)),
+    ...mapExpressRows(
+      exports.flatMap((e) => e.sales),
+      importFrom,
+      skipped,
+    ),
     ...mapInternalTransfers(transfers, importFrom, skipped),
   ];
   // Adjacent exports can both hold a row from the day they meet.
