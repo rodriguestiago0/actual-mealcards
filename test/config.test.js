@@ -83,7 +83,7 @@ describe("collectAccountMapping", () => {
 });
 
 describe("loadConfig", () => {
-  it("fails when both importers are disabled", () => {
+  it("fails when every importer is disabled", () => {
     assert.throws(() => loadConfig(base), /disabled/);
   });
 

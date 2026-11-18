@@ -42,6 +42,12 @@ services:
       - COVERFLEX_ACTUAL_ACCOUNT=
       - COVERFLEX_ACCOUNT_1= # optional extra accounts: _1, _2, ...
       - COVERFLEX_ACTUAL_ACCOUNT_1=
+      - ENABLE_BYBIT=false
+      - BYBIT_API_KEY=
+      - BYBIT_API_SECRET=
+      - BYBIT_IMPORT_FROM= # default: since the Bybit account was opened
+      - BYBIT_ACTUAL_ACCOUNT=
+      - BYBIT_TRANSFER_ACCOUNT= # optional
     restart: unless-stopped
 ```
 
@@ -68,6 +74,10 @@ docker run -d --name actual-mealcards \
   -e COVERFLEX_USER_AGENT_TOKEN= \
   -e COVERFLEX_ACCOUNT= \
   -e COVERFLEX_ACTUAL_ACCOUNT= \
+  -e ENABLE_BYBIT=false \
+  -e BYBIT_API_KEY= \
+  -e BYBIT_API_SECRET= \
+  -e BYBIT_ACTUAL_ACCOUNT= \
   --restart unless-stopped \
   rodriguestiago0/actual-mealcards:latest
 ```
