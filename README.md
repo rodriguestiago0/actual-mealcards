@@ -1,7 +1,7 @@
 # Actual Meal Cards
 
 Imports transactions from prepaid meal cards into [Actual Budget](https://actualbudget.org).
-Supported providers: **My Edenred** (Portugal) and **Coverflex**. Run an import once from the
+Supported providers: **My Edenred** (Portugal), **Coverflex** and the **Bybit EU** card. Run an import once from the
 command line or on a schedule, either with Node.js or with Docker (see
 [README.Docker.md](README.Docker.md)).
 
@@ -17,11 +17,13 @@ command line or on a schedule, either with Node.js or with Docker (see
 
    Secrets can also be read from a file (e.g. a Docker secret): set `<NAME>_FILE` to its path
    instead of `<NAME>`. This works for `ACTUAL_SERVER_PASSWORD`, `ACTUAL_FILE_PASSWORD`,
-   `EDENRED_PIN`, `COVERFLEX_PASSWORD`, `COVERFLEX_USER_AGENT_TOKEN` and `NOTIFICATION_URL`.
+   `EDENRED_PIN`, `COVERFLEX_PASSWORD`, `COVERFLEX_USER_AGENT_TOKEN`, `BYBIT_API_SECRET` and
+   `NOTIFICATION_URL`.
 
-4. Set up at least one provider: [My Edenred](#my-edenred) or [Coverflex](#coverflex).
-5. Run one import: `node index.js import-myedenred` or `node index.js import-coverflex`. Import on
-   a schedule: `npm start`.
+4. Set up at least one provider: [My Edenred](#my-edenred), [Coverflex](#coverflex) or
+   [Bybit EU](#bybit-eu).
+5. Run one import: `node index.js import-myedenred`, `import-coverflex` or `import-bybit`. Import
+   on a schedule: `npm start`.
 
 `node index.js -h` lists the commands. The scheduler caches the budget in `ACTUAL_DATA_DIR`
 (default `./temp_data_actual`). An import run from the command line downloads its own copy into a
@@ -47,7 +49,7 @@ For more cards, add pairs with a `_1`, `_2`, ... suffix (e.g. `EDENRED_ACCOUNT_1
 `EDENRED_ACTUAL_ACCOUNT_1`). Numbering stops at the first incomplete pair; the importer logs a
 warning naming any later variables it ignores.
 
-To skip older history, set `EDENRED_IMPORT_FROM` / `COVERFLEX_IMPORT_FROM` (`YYYY-MM-DD`; any
+To skip older history, set `EDENRED_IMPORT_FROM` / `COVERFLEX_IMPORT_FROM` / `BYBIT_IMPORT_FROM` (`YYYY-MM-DD`; any
 other format stops the importer at startup). The default, `1970-01-01`, imports everything.
 
 A transaction you delete in Actual stays deleted: later imports don't add it again. Set
@@ -114,6 +116,36 @@ query parameter.
   Movements imported by earlier versions near midnight move to the local day on the next import.
 - Cancelled movements are deleted from Actual automatically, unless you reconciled them: those are
   kept, with a warning in the log.
+
+## Bybit EU
+
+Imports the Bybit Card's purchases and refunds, and the account's euro deposits (SEPA, Apple Pay,
+MB Way, ...), campaign bonuses and crypto sold for euros, into one Actual account: every card on the Bybit account goes
+there.
+
+1. On bybit.eu, create a read-only API key with the **Exchange History** permission (system
+   generated, HMAC). Keys expire, so note the date and renew it.
+2. Set `ENABLE_BYBIT=true`, `BYBIT_API_KEY`, `BYBIT_API_SECRET` and `BYBIT_ACTUAL_ACCOUNT` (the
+   Actual account ID).
+3. Optionally, set `BYBIT_TRANSFER_ACCOUNT` to the Actual account that tracks Bybit's other
+   accounts (e.g. crypto in the Unified account): euro transfers between them and the Funding
+   account are imported as transfers to it. Without it, they're imported with a "Bybit Unified"
+   payee.
+
+Bybit EU's API keys can't read card transactions directly, so the importer uses its tax export:
+it requests a report, waits for Bybit to prepare it (usually 2–3 minutes) and downloads it.
+Reports cover at most 12 months each, so a longer history takes several, requested at once. The
+first scheduled import fetches everything since `BYBIT_IMPORT_FROM` (or since the account was
+opened); later ones in the same process only fetch the last 30 days.
+
+### Caveats
+
+- Card purchases are imported once they settle, usually a day after the payment: authorizations
+  have no link to the purchase they become, so importing them would count each payment twice.
+- Amounts are in euros, as charged. Foreign purchases note the original amount and the fee.
+- Pending refunds, deposits and sales are imported once they complete.
+- Card purchases are dated by the day of the payment; deposits and transfers by the day in the
+  local time zone (`TZ`).
 
 ## Scheduling
 

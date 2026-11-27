@@ -2,7 +2,7 @@
  * Minimal in-memory stand-in for @actual-app/api, recording every call. Return shapes follow the
  * real API; test/actual-api.test.js checks the code against the real one.
  */
-export function fakeApi({ transactions = {}, accounts = [] } = {}) {
+export function fakeApi({ transactions = {}, accounts = [], payees = [] } = {}) {
   const calls = [];
   const record =
     (name, result) =>
@@ -18,6 +18,7 @@ export function fakeApi({ transactions = {}, accounts = [] } = {}) {
     sync: record("sync"),
     shutdown: record("shutdown"),
     getAccounts: record("getAccounts", () => accounts),
+    getPayees: record("getPayees", () => payees),
     // Like the real API, only returns transactions dated within [startDate, endDate].
     getTransactions: record("getTransactions", (accountId, startDate, endDate) =>
       (transactions[accountId] ?? []).filter((t) => t.date >= startDate && t.date <= endDate),

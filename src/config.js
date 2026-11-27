@@ -43,6 +43,7 @@ const SECRETS = [
   "EDENRED_PIN",
   "COVERFLEX_PASSWORD",
   "COVERFLEX_USER_AGENT_TOKEN",
+  "BYBIT_API_SECRET",
   "NOTIFICATION_URL",
 ];
 
@@ -106,8 +107,9 @@ export function loadConfig(processEnv = process.env) {
   const env = readSecretFiles(processEnv);
   const enableEdenred = stringToBoolean(env.ENABLE_EDENRED);
   const enableCoverflex = stringToBoolean(env.ENABLE_COVERFLEX);
-  if (!enableEdenred && !enableCoverflex) {
-    throw new Error("Both meal card importers are disabled");
+  const enableBybit = stringToBoolean(env.ENABLE_BYBIT);
+  if (!enableEdenred && !enableCoverflex && !enableBybit) {
+    throw new Error("Every importer is disabled");
   }
 
   requireEnv(env, ["ACTUAL_SERVER_URL", "ACTUAL_SERVER_PASSWORD", "ACTUAL_SYNC_ID"]);
@@ -126,6 +128,7 @@ export function loadConfig(processEnv = process.env) {
     notifications: parseNotificationUrls(env.NOTIFICATION_URL),
     edenred: null,
     coverflex: null,
+    bybit: null,
   };
 
   if (enableEdenred) {
@@ -147,6 +150,17 @@ export function loadConfig(processEnv = process.env) {
       userAgentToken: env.COVERFLEX_USER_AGENT_TOKEN || "",
       importFrom: importFrom(env, "COVERFLEX_IMPORT_FROM"),
       accounts: collectAccountMapping(env, "COVERFLEX"),
+    };
+  }
+
+  if (enableBybit) {
+    requireEnv(env, ["BYBIT_API_KEY", "BYBIT_API_SECRET", "BYBIT_ACTUAL_ACCOUNT"]);
+    config.bybit = {
+      apiKey: env.BYBIT_API_KEY,
+      apiSecret: env.BYBIT_API_SECRET,
+      importFrom: importFrom(env, "BYBIT_IMPORT_FROM"),
+      actualAccount: env.BYBIT_ACTUAL_ACCOUNT,
+      transferAccount: env.BYBIT_TRANSFER_ACCOUNT || null,
     };
   }
 

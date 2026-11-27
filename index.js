@@ -16,6 +16,7 @@ const USAGE = `
   Commands
     import-myedenred     Sync My Edenred accounts to Actual Budget
     import-coverflex     Sync Coverflex accounts to Actual Budget
+    import-bybit         Sync Bybit EU card and deposits to Actual Budget
     get-coverflex-token  Log in to Coverflex with an OTP and print the user agent token
 
   Options
@@ -54,6 +55,7 @@ async function runImport(name, provider, { dryRun }) {
 const commands = {
   "import-myedenred": (options) => runImport("edenred", imports.Edenred, options),
   "import-coverflex": (options) => runImport("coverflex", imports.Coverflex, options),
+  "import-bybit": (options) => runImport("bybit", imports.Bybit, options),
   // Needs only the Coverflex credentials, not the Actual or import settings.
   "get-coverflex-token": async () => {
     const token = await getUserAgentToken(loadCoverflexCredentials(), askOtp);

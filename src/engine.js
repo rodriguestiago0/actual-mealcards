@@ -7,6 +7,7 @@ import {
 } from "./actual.js";
 import { log } from "./log.js";
 import { notify } from "./notify.js";
+import * as bybit from "./providers/bybit.js";
 import * as coverflex from "./providers/coverflex.js";
 import * as edenred from "./providers/edenred.js";
 
@@ -108,6 +109,74 @@ async function importCoverflexInto(api, config, token) {
   return failures;
 }
 
+/**
+ * Makes Bybit's transfers between its own accounts (marked with `counterparty`) transfers to the
+ * Actual account that tracks them, when configured; otherwise they stay plain transactions.
+ */
+async function asTransfers(api, transactions, transferAccount) {
+  const payee =
+    transferAccount && (await api.getPayees()).find((p) => p.transfer_acct === transferAccount)?.id;
+  // Imported transactions are never updated, so a plain one could never become a transfer.
+  if (transferAccount && !payee) {
+    throw new Error(`No transfer payee for BYBIT_TRANSFER_ACCOUNT ${transferAccount}`);
+  }
+  return transactions.map(({ counterparty, ...transaction }) =>
+    counterparty && payee ? { ...transaction, payee_name: undefined, payee } : transaction,
+  );
+}
+
+/**
+ * Imports the Bybit transactions fetched by prepare (the export takes a while, so it runs before
+ * the budget is opened) into the one Bybit account.
+ */
+async function importBybitInto(api, config, { transactions, skipped, startedAt }) {
+  const failures = accountFailures("Bybit");
+  let complete = false;
+  const { actualAccount, transferAccount } = config.bybit;
+  await requireOpenAccounts(api, "Bybit", {
+    "Bybit EU": actualAccount,
+    ...(transferAccount && { "Bybit transfers": transferAccount }),
+  });
+  await failures.run("Bybit EU", async () => {
+    failures.skipped("Bybit EU", skipped);
+    transactions = await asTransfers(api, transactions, transferAccount);
+    if (transactions.length === 0) {
+      log.info("No transactions to import");
+      complete = skipped.length === 0 && !api.dryRun;
+      return;
+    }
+    const errors = await importTransactions(api, actualAccount, transactions, config.actual);
+    if (errors.length > 0) {
+      failures.rejected(actualAccount);
+      return;
+    }
+    // No updateChangedTransactions: only settled rows are imported, so amounts don't change, and
+    // it would move transactions matched to ones entered by hand to Bybit's dates.
+    complete = skipped.length === 0 && !api.dryRun;
+  });
+  // throwIfAny runs only once the budget has synced, so a failed sync refetches everything.
+  const { throwIfAny } = failures;
+  failures.throwIfAny = () => {
+    throwIfAny();
+    if (complete) bybitImportedAt = startedAt;
+  };
+  return failures;
+}
+
+// After a full import, the scheduler only fetches recent Bybit history: every export takes minutes.
+const BYBIT_REFETCH_DAYS = 30;
+let bybitImportedAt = null;
+
+async function fetchBybit(config) {
+  const skipped = [];
+  const since = bybitImportedAt ? bybitImportedAt - BYBIT_REFETCH_DAYS * bybit.DAY_MS : 0;
+  const startedAt = Date.now();
+  const transactions = await bybit.getTransactions(config.bybit, config.bybit.importFrom, skipped, {
+    since,
+  });
+  return { transactions, skipped, startedAt };
+}
+
 /** Logs in, then opens the budget, imports and syncs; account failures are thrown after. */
 async function importAlone(provider, config, budgetApi) {
   const session = await provider.prepare(config);
@@ -122,6 +191,7 @@ async function importAlone(provider, config, budgetApi) {
 export const importEdenred = (config, budgetApi) => importAlone(imports.Edenred, config, budgetApi);
 export const importCoverflex = (config, budgetApi) =>
   importAlone(imports.Coverflex, config, budgetApi);
+export const importBybit = (config, budgetApi) => importAlone(imports.Bybit, config, budgetApi);
 
 let lastExpiryWarning = null;
 
@@ -163,6 +233,12 @@ export const imports = {
     },
     importInto: importCoverflexInto,
     run: (config, budgetApi) => importCoverflex(config, budgetApi),
+  },
+  Bybit: {
+    enabled: (config) => config.bybit,
+    prepare: fetchBybit,
+    importInto: importBybitInto,
+    run: (config, budgetApi) => importBybit(config, budgetApi),
   },
 };
 
